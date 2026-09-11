@@ -93,8 +93,11 @@ async function runMigrationsWithSeed() {
     // Rodar migrations
     await runMigrations();
 
-    // TODO: Seeders podem ser executados aqui conforme necessário
-    console.log('\n🌱 Seeders desabilitados para evitar circular dependencies\n');
+    // Executar seeders
+    console.log('\n🌱 Running seeders...\n');
+    const { runAllSeeds } = await import('./seeders/index.js');
+    await runAllSeeds();
+
     console.log('✅ Migrations completed!\n');
   } catch (error) {
     console.error('❌ Process failed:', error);

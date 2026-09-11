@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { AppDataSource } from '../connection.js';
+import { initializeDatabase } from '../connection.js';
 import { StoreModel } from '../models/StoreModel';
 import { UserModel } from '../models/UserModel';
 import { StoreSeed } from './StoreSeed';
@@ -7,10 +7,7 @@ import { UserSeed } from './UserSeed';
 
 export async function runAllSeeds() {
   try {
-    if (!AppDataSource.isInitialized) {
-      await AppDataSource.initialize();
-      console.log('Database connected successfully');
-    }
+    const AppDataSource = await initializeDatabase();
 
     const storeRepository = AppDataSource.getRepository(StoreModel);
     const userRepository = AppDataSource.getRepository(UserModel);
@@ -41,15 +38,17 @@ export async function runAllSeeds() {
     console.error('Seed process failed:', error);
     throw error;
   } finally {
-    if (AppDataSource.isInitialized) {
-      await AppDataSource.destroy();
-    }
+    // Connection is closed by initializeDatabase
   }
 }
 
 // Run if executed directly
-if (require.main === module) {
-  runAllSeeds();
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMainModule || process.argv[1]?.endsWith('seeders/index.ts')) {
+  runAllSeeds().catch(console.error);
 }
 
 export { StoreSeed, UserSeed };

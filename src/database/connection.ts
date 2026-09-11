@@ -1,5 +1,8 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+import { StoreModel } from './models/StoreModel.js';
+import { UserModel } from './models/UserModel.js';
+import { AuditLogModel } from './models/AuditLogModel.js';
 
 export let AppDataSource: DataSource;
 
@@ -17,13 +20,9 @@ export async function createDataSource() {
     database: process.env.DB_NAME || 'foodihub',
     synchronize: false,
     logging: process.env.NODE_ENV === 'development',
-    entities: [
-      'dist/database/models/StoreModel.js',
-      'dist/database/models/UserModel.js',
-      'dist/database/models/AuditLogModel.js',
-    ],
-    migrations: ['src/database/migrations/**/*.ts'],
-    subscribers: ['src/database/subscribers/**/*.ts'],
+    entities: [StoreModel, UserModel, AuditLogModel],
+    migrations: ['dist/database/migrations/**/*.js'],
+    subscribers: ['dist/database/subscribers/**/*.js'],
   });
 
   return AppDataSource;

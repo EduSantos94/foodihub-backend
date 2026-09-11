@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { UserModel, UserRole } from '../models/UserModel';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 export class UserSeed {
   constructor(private repository: Repository<UserModel>) {}

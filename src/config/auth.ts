@@ -1,5 +1,5 @@
 import * as jwt from 'jsonwebtoken';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '24h';

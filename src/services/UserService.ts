@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import { createDataSource } from '../database/connection.js';
 import { UserModel, UserRole } from '../database/models/UserModel.js';
 import {

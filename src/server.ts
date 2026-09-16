@@ -6,6 +6,7 @@ import { initializeDatabase } from './database/connection.js';
 import authRoutes from './routes/auth.routes.js';
 import storeRoutes from './routes/store.routes.js';
 import userRoutes from './routes/user.routes.js';
+import productRoutes from './routes/product.routes.js';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.get('/health', (req, res) => {
 app.use('/auth', authRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
 
 // Welcome endpoint
 app.get('/api', (req, res) => {

@@ -6,6 +6,8 @@ import { DataSource } from 'typeorm';
 import { StoreModel } from './models/StoreModel.js';
 import { UserModel } from './models/UserModel.js';
 import { AuditLogModel } from './models/AuditLogModel.js';
+import { ProductModel } from './models/ProductModel.js';
+import { ProductSizeModel } from './models/ProductSizeModel.js';
 
 /**
  * Migration Runner
@@ -30,7 +32,7 @@ const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'foodihub',
   synchronize: false,
   logging: false,
-  entities: [StoreModel, UserModel, AuditLogModel],
+  entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel],
   migrations: ['src/database/migrations/**/*.ts'],
   subscribers: ['src/database/subscribers/**/*.ts'],
 });

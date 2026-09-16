@@ -3,6 +3,8 @@ import { DataSource } from 'typeorm';
 import { StoreModel } from './models/StoreModel.js';
 import { UserModel } from './models/UserModel.js';
 import { AuditLogModel } from './models/AuditLogModel.js';
+import { ProductModel } from './models/ProductModel.js';
+import { ProductSizeModel } from './models/ProductSizeModel.js';
 
 export let AppDataSource: DataSource;
 
@@ -20,7 +22,7 @@ export async function createDataSource() {
     database: process.env.DB_NAME || 'foodihub',
     synchronize: false,
     logging: process.env.NODE_ENV === 'development',
-    entities: [StoreModel, UserModel, AuditLogModel],
+    entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel],
     migrations: ['dist/database/migrations/**/*.js'],
     subscribers: ['dist/database/subscribers/**/*.js'],
   });

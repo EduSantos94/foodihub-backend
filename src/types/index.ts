@@ -147,3 +147,52 @@ export interface RequestContext {
   user_role: string;
   email: string;
 }
+
+// ==================== Product ====================
+export interface CreateProductRequest {
+  name: string;
+  description?: string;
+  price: number;
+  amount?: number;
+}
+
+export interface UpdateProductRequest {
+  name?: string;
+  description?: string;
+  price?: number;
+  amount?: number;
+  active?: boolean;
+}
+
+export interface ProductResponse {
+  id: string;
+  store_id: string;
+  name: string;
+  description?: string;
+  price: number;
+  amount: number;
+  active: boolean;
+  sizes?: ProductSizeResponse[];
+  created_at: Date;
+  updated_at: Date;
+}
+
+// ==================== Product Size ====================
+export interface CreateProductSizeRequest {
+  name: string;
+}
+
+export interface UpdateProductSizeRequest {
+  name?: string;
+  active?: boolean;
+}
+
+export interface ProductSizeResponse {
+  id: string;
+  product_id: string;
+  store_id: string;
+  name: string;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}

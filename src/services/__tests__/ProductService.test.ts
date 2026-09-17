@@ -32,7 +32,7 @@ describe('ProductService', () => {
 
   describe('createProduct', () => {
     it('should create a product successfully', async () => {
-      const data = { name: 'Pizza', price: 25.5, description: 'Delicious pizza', amount: 10 };
+      const data = { name: 'Pizza', price: 25.5, description: 'Delicious pizza', amount: 10, category_id: 'cat-1' };
       const mockProduct = {
         id: mockProductId,
         store_id: mockStoreId,
@@ -50,6 +50,7 @@ describe('ProductService', () => {
       expect(result.name).toBe('Pizza');
       expect(result.price).toBe(25.5);
       expect(result.amount).toBe(10);
+      expect(result.category_id).toBe('cat-1');
       expect(result.active).toBe(true);
       expect(mockQueries.createProduct).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -57,6 +58,7 @@ describe('ProductService', () => {
           name: 'Pizza',
           price: 25.5,
           amount: 10,
+          category_id: 'cat-1',
           active: true,
         })
       );
@@ -91,6 +93,7 @@ describe('ProductService', () => {
         name: 'Pizza',
         price: 25.5,
         amount: 5,
+        category_id: 'cat-1',
         active: true,
         sizes: [],
         created_at: new Date(),
@@ -105,6 +108,7 @@ describe('ProductService', () => {
       expect(result.name).toBe('Pizza');
       expect(result.id).toBe(mockProductId);
       expect(result.amount).toBe(5);
+      expect(result.category_id).toBe('cat-1');
       expect(mockQueries.findProductById).toHaveBeenCalledWith(mockProductId, mockStoreId);
     });
 

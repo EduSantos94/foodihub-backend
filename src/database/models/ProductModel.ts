@@ -12,6 +12,7 @@ import {
 @Entity('products')
 @Index(['store_id'])
 @Index(['active'])
+@Index(['category_id'])
 @Index(['store_id', 'active'])
 export class ProductModel {
   @PrimaryGeneratedColumn('uuid')
@@ -19,6 +20,9 @@ export class ProductModel {
 
   @Column('uuid')
   store_id: string;
+
+  @Column('uuid', { nullable: true })
+  category_id?: string;
 
   @Column('varchar', { length: 255 })
   name: string;

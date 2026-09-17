@@ -47,7 +47,7 @@ describe('ProductController', () => {
 
   describe('createProduct', () => {
     it('should create product successfully', async () => {
-      const productData = { name: 'Pizza', price: 25.5, description: 'Delicious', amount: 10 };
+      const productData = { name: 'Pizza', price: 25.5, description: 'Delicious', amount: 10, category_id: 'cat-1' };
       mockRequest.body = productData;
 
       const mockProduct = {
@@ -120,6 +120,7 @@ describe('ProductController', () => {
         store_id: mockStoreId,
         name: 'Pizza',
         price: 25.5,
+        category_id: 'cat-1',
         active: true,
       };
 

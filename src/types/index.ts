@@ -154,6 +154,7 @@ export interface CreateProductRequest {
   description?: string;
   price: number;
   amount?: number;
+  category_id?: string;
 }
 
 export interface UpdateProductRequest {
@@ -161,18 +162,41 @@ export interface UpdateProductRequest {
   description?: string;
   price?: number;
   amount?: number;
+  category_id?: string;
   active?: boolean;
 }
 
 export interface ProductResponse {
   id: string;
   store_id: string;
+  category_id?: string;
   name: string;
   description?: string;
   price: number;
   amount: number;
   active: boolean;
   sizes?: ProductSizeResponse[];
+  created_at: Date;
+  updated_at: Date;
+}
+
+// ==================== Category ====================
+export interface CreateCategoryRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateCategoryRequest {
+  name?: string;
+  description?: string;
+  active?: boolean;
+}
+
+export interface CategoryResponse {
+  id: string;
+  name: string;
+  description?: string;
+  active: boolean;
   created_at: Date;
   updated_at: Date;
 }

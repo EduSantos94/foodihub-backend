@@ -40,6 +40,7 @@ export class ProductService {
       description: data.description,
       price: data.price,
       amount: data.amount ?? 0,
+      category_id: data.category_id,
       active: true,
     });
     return this.mapProduct(product);
@@ -148,6 +149,7 @@ export class ProductService {
     return {
       id: p.id,
       store_id: p.store_id,
+      category_id: p.category_id,
       name: p.name,
       description: p.description,
       price: Number(p.price),

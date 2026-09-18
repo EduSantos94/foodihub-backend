@@ -8,21 +8,18 @@ import { UserModel } from './models/UserModel.js';
 import { AuditLogModel } from './models/AuditLogModel.js';
 import { ProductModel } from './models/ProductModel.js';
 import { ProductSizeModel } from './models/ProductSizeModel.js';
+import { CategoryModel } from './models/CategoryModel.js';
+import { CustomerModel } from './models/CustomerModel.js';
 
 /**
  * Migration Runner
- * Executa arquivos SQL do diretório migrations em ordem numérica
- * 
- * Uso:
- *   npm run migrate       # Executa todas as migrations
- *   npm run migrate:seed  # Executa migrations + seeders
+ * Executa arquivos SQL do diretório migrations em ordem numérica.
+ * Mantém controle das migrations já executadas na tabela _migrations.
  */
 
-// Definir __dirname para módulos ES6
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create DataSource directly
 const AppDataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -32,42 +29,72 @@ const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'foodihub',
   synchronize: false,
   logging: false,
-  entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel],
-  migrations: ['src/database/migrations/**/*.ts'],
-  subscribers: ['src/database/subscribers/**/*.ts'],
+  entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel],
 });
+
+async function ensureMigrationsTable(queryRunner: any): Promise<void> {
+  await queryRunner.query(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id SERIAL PRIMARY KEY,
+      filename VARCHAR(255) NOT NULL UNIQUE,
+      executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+async function getExecutedMigrations(queryRunner: any): Promise<string[]> {
+  const rows = await queryRunner.query(`SELECT filename FROM _migrations ORDER BY filename`);
+  return rows.map((r: any) => r.filename);
+}
+
+async function markMigrationExecuted(queryRunner: any, filename: string): Promise<void> {
+  await queryRunner.query(`INSERT INTO _migrations (filename) VALUES ($1)`, [filename]);
+}
 
 async function runMigrations() {
   try {
-    // Inicializar conexão
     if (!AppDataSource.isInitialized) {
       await AppDataSource.initialize();
       console.log('✓ Database connected');
     }
 
     const migrationsDir = path.join(__dirname, 'migrations');
-    const files = fs.readdirSync(migrationsDir)
+    const allFiles = fs.readdirSync(migrationsDir)
       .filter(file => file.endsWith('.sql'))
-      .sort(); // Ordem numérica automática
+      .sort();
 
-    if (files.length === 0) {
+    if (allFiles.length === 0) {
       console.log('ℹ️  No migration files found');
       return;
     }
 
-    console.log(`\n📦 Found ${files.length} migration(s)\n`);
-
     const queryRunner = AppDataSource.createQueryRunner();
     await queryRunner.connect();
 
-    for (const file of files) {
+    // Garante que a tabela de controle existe
+    await ensureMigrationsTable(queryRunner);
+
+    // Filtra apenas as migrations ainda não executadas
+    const executed = await getExecutedMigrations(queryRunner);
+    const pending = allFiles.filter(f => !executed.includes(f));
+
+    if (pending.length === 0) {
+      console.log('\n✅ All migrations are already up to date.\n');
+      await queryRunner.release();
+      return;
+    }
+
+    console.log(`\n📦 Found ${pending.length} pending migration(s) (${allFiles.length} total)\n`);
+
+    for (const file of pending) {
       const filePath = path.join(migrationsDir, file);
       const sql = fs.readFileSync(filePath, 'utf-8');
 
       console.log(`⏳ Running: ${file}`);
       try {
         await queryRunner.query(sql);
-        console.log(`✓ Completed: ${file}\n`);
+        await markMigrationExecuted(queryRunner, file);
+        console.log(`✓ Completed: ${file}`);
       } catch (error) {
         console.error(`✗ Failed: ${file}`);
         console.error((error as Error).message);
@@ -76,7 +103,7 @@ async function runMigrations() {
     }
 
     await queryRunner.release();
-    console.log('✅ All migrations completed successfully!\n');
+    console.log('\n✅ All migrations completed successfully!\n');
   } catch (error) {
     console.error('❌ Migration failed:', error);
     process.exit(1);
@@ -87,27 +114,21 @@ async function runMigrations() {
   }
 }
 
-/**
- * Executar migrations + seeders
- */
 async function runMigrationsWithSeed() {
   try {
-    // Rodar migrations
     await runMigrations();
 
-    // Executar seeders
     console.log('\n🌱 Running seeders...\n');
     const { runAllSeeds } = await import('./seeders/index.js');
     await runAllSeeds();
 
-    console.log('✅ Migrations completed!\n');
+    console.log('✅ Migrations + seeders completed!\n');
   } catch (error) {
     console.error('❌ Process failed:', error);
     process.exit(1);
   }
 }
 
-// Determinar qual comando executar
 const command = process.argv[2];
 
 if (command === 'seed') {

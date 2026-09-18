@@ -6,6 +6,7 @@ import { AuditLogModel } from './models/AuditLogModel.js';
 import { ProductModel } from './models/ProductModel.js';
 import { ProductSizeModel } from './models/ProductSizeModel.js';
 import { CategoryModel } from './models/CategoryModel.js';
+import { CustomerModel } from './models/CustomerModel.js';
 
 export let AppDataSource: DataSource;
 
@@ -23,7 +24,7 @@ export async function createDataSource() {
     database: process.env.DB_NAME || 'foodihub',
     synchronize: false,
     logging: process.env.NODE_ENV === 'development',
-    entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel],
+    entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel],
     migrations: ['dist/database/migrations/**/*.js'],
     subscribers: ['dist/database/subscribers/**/*.js'],
   });

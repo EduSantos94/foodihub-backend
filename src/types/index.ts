@@ -180,6 +180,26 @@ export interface ProductResponse {
   updated_at: Date;
 }
 
+// ==================== Product Size ====================
+export interface CreateProductSizeRequest {
+  name: string;
+}
+
+export interface UpdateProductSizeRequest {
+  name?: string;
+  active?: boolean;
+}
+
+export interface ProductSizeResponse {
+  id: string;
+  product_id: string;
+  store_id: string;
+  name: string;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // ==================== Category ====================
 export interface CreateCategoryRequest {
   name: string;
@@ -201,22 +221,49 @@ export interface CategoryResponse {
   updated_at: Date;
 }
 
-// ==================== Product Size ====================
-export interface CreateProductSizeRequest {
-  name: string;
+// ==================== Customer ====================
+export interface CreateCustomerRequest {
+  first_name: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  cpf?: string;
+  delivery_address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  notes?: string;
 }
 
-export interface UpdateProductSizeRequest {
-  name?: string;
+export interface UpdateCustomerRequest {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  cpf?: string;
+  delivery_address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  notes?: string;
   active?: boolean;
 }
 
-export interface ProductSizeResponse {
+export interface CustomerResponse {
   id: string;
-  product_id: string;
   store_id: string;
-  name: string;
+  first_name: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  cpf?: string;
+  delivery_address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  notes?: string;
   active: boolean;
   created_at: Date;
   updated_at: Date;
 }
+

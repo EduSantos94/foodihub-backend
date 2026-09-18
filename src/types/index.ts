@@ -267,3 +267,49 @@ export interface CustomerResponse {
   updated_at: Date;
 }
 
+
+// ==================== Supplier ====================
+export interface CreateSupplierRequest {
+  name: string;
+  cnpj?: string;
+  phone?: string;
+  email?: string;
+  contact_person?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  notes?: string;
+}
+
+export interface UpdateSupplierRequest {
+  name?: string;
+  cnpj?: string;
+  phone?: string;
+  email?: string;
+  contact_person?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  notes?: string;
+  active?: boolean;
+}
+
+export interface SupplierResponse {
+  id: string;
+  store_id: string;
+  name: string;
+  cnpj?: string;
+  phone?: string;
+  email?: string;
+  contact_person?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  notes?: string;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}

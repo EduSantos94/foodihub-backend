@@ -7,3 +7,4 @@ export { UserModel, UserRole } from './UserModel.js';
 export { AuditLogModel, AuditAction, AuditStatus } from './AuditLogModel.js';
 export { CustomerModel } from './CustomerModel.js';
 export { SupplierModel } from './SupplierModel.js';
+export { SupplyModel, SupplyType, UnitMeasure } from './SupplyModel.js';

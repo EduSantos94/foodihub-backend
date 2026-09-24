@@ -363,3 +363,41 @@ export interface ImageListQuery extends PaginationQuery {
   type_id?: number;
   active?: boolean;
 }
+
+// ==================== Supply ====================
+export type SupplyTypeUnion = 'ingredient' | 'packaging' | 'cleaning' | 'utensil' | 'office' | 'other';
+export type UnitMeasureUnion = 'un' | 'kg' | 'g' | 'l' | 'ml' | 'cx' | 'pct' | 'dz' | 'm' | 'other';
+
+export interface CreateSupplyRequest {
+  name: string;
+  type?: SupplyTypeUnion;
+  unit_measure: UnitMeasureUnion;
+  description?: string;
+  active?: boolean;
+}
+
+export interface UpdateSupplyRequest {
+  name?: string;
+  type?: SupplyTypeUnion;
+  unit_measure?: UnitMeasureUnion;
+  description?: string;
+  active?: boolean;
+}
+
+export interface SupplyResponse {
+  id: number;
+  store_id: string;
+  name: string;
+  type: string;
+  unit_measure: string;
+  description?: string;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SupplyListQuery extends PaginationQuery {
+  type?: SupplyTypeUnion;
+  active?: boolean;
+  search?: string;
+}

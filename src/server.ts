@@ -10,6 +10,7 @@ import productRoutes from './routes/product.routes.js';
 import { categoryRoutes } from './routes/category.routes.js';
 import { customerRoutes } from './routes/customer.routes.js';
 import { supplierRoutes } from './routes/supplier.routes.js';
+import { imageRoutes } from './routes/image.routes.js';
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/suppliers', supplierRoutes);
+app.use('/api/images', imageRoutes);
 
 // Welcome endpoint
 app.get('/api', (req, res) => {
@@ -55,6 +57,7 @@ app.get('/api', (req, res) => {
       categories: '/api/categories',
       customers: '/api/customers',
       suppliers: '/api/suppliers',
+      images: '/api/images',
     },
   });
 });

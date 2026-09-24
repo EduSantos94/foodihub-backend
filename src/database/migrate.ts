@@ -10,6 +10,8 @@ import { ProductModel } from './models/ProductModel.js';
 import { ProductSizeModel } from './models/ProductSizeModel.js';
 import { CategoryModel } from './models/CategoryModel.js';
 import { CustomerModel } from './models/CustomerModel.js';
+import { SupplierModel } from './models/SupplierModel.js';
+import { ImageModel } from './models/ImageModel.js';
 
 /**
  * Migration Runner
@@ -29,7 +31,7 @@ const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'foodihub',
   synchronize: false,
   logging: false,
-  entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel],
+  entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel, SupplierModel, ImageModel],
 });
 
 async function ensureMigrationsTable(queryRunner: any): Promise<void> {

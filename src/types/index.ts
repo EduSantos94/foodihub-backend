@@ -313,3 +313,53 @@ export interface SupplierResponse {
   created_at: Date;
   updated_at: Date;
 }
+
+// ==================== Image ====================
+export type ImageTypeUnion = 'shop' | 'product' | 'supplier' | 'banner' | 'category' | 'promotional' | 'others';
+
+export interface CreateImageRequest {
+  shop_id: number;
+  type: ImageTypeUnion;
+  type_id?: number;
+  filename: string;
+  rl_original: string;
+  url_thumbnail?: string;
+  file_size?: number;
+  mime_type?: string;
+  dimensions?: string;
+  active?: boolean;
+}
+
+export interface UpdateImageRequest {
+  type?: ImageTypeUnion;
+  type_id?: number;
+  filename?: string;
+  rl_original?: string;
+  url_thumbnail?: string;
+  file_size?: number;
+  mime_type?: string;
+  dimensions?: string;
+  active?: boolean;
+}
+
+export interface ImageResponse {
+  id: number;
+  shop_id: number;
+  type: string;
+  type_id?: number;
+  filename: string;
+  rl_original: string;
+  url_thumbnail?: string;
+  file_size?: number;
+  mime_type?: string;
+  dimensions?: string;
+  uploaded_at: Date;
+  active: boolean;
+}
+
+export interface ImageListQuery extends PaginationQuery {
+  shop_id?: number;
+  type?: ImageTypeUnion;
+  type_id?: number;
+  active?: boolean;
+}

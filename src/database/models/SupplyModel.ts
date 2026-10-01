@@ -8,36 +8,16 @@ import {
   Unique,
 } from 'typeorm';
 
-export enum SupplyType {
-  INGREDIENT = 'ingredient',
-  PACKAGING = 'packaging',
-  CLEANING = 'cleaning',
-  UTENSIL = 'utensil',
-  OFFICE = 'office',
-  OTHER = 'other',
-}
-
-export enum UnitMeasure {
-  UN = 'un',
-  KG = 'kg',
-  G = 'g',
-  L = 'l',
-  ML = 'ml',
-  CX = 'cx',
-  PCT = 'pct',
-  DZ = 'dz',
-  M = 'm',
-  OTHER = 'other',
-}
+export type SupplyType = 'ingredient' | 'packaging' | 'cleaning' | 'other';
 
 @Entity('supplies')
-@Unique(['store_id', 'name'])
 @Index(['store_id'])
 @Index(['store_id', 'type'])
 @Index(['active'])
+@Unique(['store_id', 'name'])
 export class SupplyModel {
-  @PrimaryGeneratedColumn('increment')
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column('uuid')
   store_id: string;
@@ -45,11 +25,11 @@ export class SupplyModel {
   @Column('varchar', { length: 255 })
   name: string;
 
-  @Column('enum', { enum: SupplyType, default: SupplyType.INGREDIENT })
+  @Column('varchar', { length: 50, default: 'ingredient' })
   type: SupplyType;
 
-  @Column('enum', { enum: UnitMeasure })
-  unit_measure: UnitMeasure;
+  @Column('varchar', { length: 20 })
+  unit_measure: string;
 
   @Column('text', { nullable: true })
   description?: string;

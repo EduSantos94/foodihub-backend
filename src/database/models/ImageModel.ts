@@ -6,37 +6,29 @@ import {
   Index,
 } from 'typeorm';
 
-export enum ImageType {
-  SHOP = 'shop',
-  PRODUCT = 'product',
-  SUPPLIER = 'supplier',
-  BANNER = 'banner',
-  CATEGORY = 'category',
-  PROMOTIONAL = 'promotional',
-  OTHERS = 'others',
-}
+export type ImageEntityType = 'store' | 'product' | 'supplier' | 'banner' | 'category' | 'promotional' | 'other';
 
 @Entity('images')
-@Index(['shop_id', 'type', 'type_id'])
-@Index(['uploaded_at'])
+@Index(['store_id', 'entity_type', 'entity_id'])
+@Index(['store_id'])
 export class ImageModel {
-  @PrimaryGeneratedColumn('identity', { generatedIdentity: 'ALWAYS' })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column('int')
-  shop_id: number;
+  @Column('uuid')
+  store_id: string;
 
-  @Column('enum', { enum: ImageType })
-  type: ImageType;
+  @Column('varchar', { length: 50 })
+  entity_type: ImageEntityType;
 
-  @Column('int', { nullable: true })
-  type_id?: number;
+  @Column('uuid', { nullable: true })
+  entity_id?: string;
 
   @Column('varchar', { length: 500 })
   filename: string;
 
   @Column('varchar', { length: 500 })
-  rl_original: string;
+  url_original: string;
 
   @Column('varchar', { length: 500, nullable: true })
   url_thumbnail?: string;
@@ -50,9 +42,9 @@ export class ImageModel {
   @Column('varchar', { length: 20, nullable: true })
   dimensions?: string;
 
-  @CreateDateColumn()
-  uploaded_at: Date;
-
   @Column('boolean', { default: true })
   active: boolean;
+
+  @CreateDateColumn()
+  uploaded_at: Date;
 }

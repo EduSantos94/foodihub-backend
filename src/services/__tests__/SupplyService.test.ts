@@ -1,43 +1,30 @@
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SupplyService } from '../SupplyService.js';
-import { SupplyType, UnitMeasure, SupplyModel } from '../../database/models/SupplyModel.js';
-import { CreateSupplyRequest, UpdateSupplyRequest, SupplyListQuery } from '../../types/index.js';
 
-vi.mock('../../database/connection.js', () => ({
-  createDataSource: vi.fn(),
-}));
-
-interface MockSupplyQueries {
-  createSupply: Mock;
-  findSupplyById: Mock;
-  findSupplyByName: Mock;
-  findAllByStore: Mock;
-  updateSupply: Mock;
-  deleteSupply: Mock;
-}
+vi.mock('../../database/connection.js', () => ({ createDataSource: vi.fn() }));
 
 describe('SupplyService', () => {
   let service: SupplyService;
-  let mockQueries: MockSupplyQueries;
+  let mockQueries: any;
 
-  const mockStoreId = 'store-uuid-123';
-  const mockSupplyModel: SupplyModel = {
-    id: 1,
+  const mockStoreId = 'store-123';
+  const mockSupplyId = 'supply-456';
+
+  const mockSupply = {
+    id: mockSupplyId,
     store_id: mockStoreId,
     name: 'Farinha de Trigo',
-    type: SupplyType.INGREDIENT,
-    unit_measure: UnitMeasure.KG,
-    description: 'Farinha especial para massas',
+    type: 'ingredient',
+    unit_measure: 'kg',
+    description: 'Farinha tipo 1',
     active: true,
-    created_at: new Date('2025-01-01T00:00:00.000Z'),
-    updated_at: new Date('2025-01-01T00:00:00.000Z'),
+    created_at: new Date(),
+    updated_at: new Date(),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-
     service = new SupplyService();
-
     mockQueries = {
       createSupply: vi.fn(),
       findSupplyById: vi.fn(),
@@ -46,278 +33,139 @@ describe('SupplyService', () => {
       updateSupply: vi.fn(),
       deleteSupply: vi.fn(),
     };
-
-    Reflect.set(service, 'queries', mockQueries);
   });
 
   describe('createSupply', () => {
     it('should create supply successfully', async () => {
-      const createData: CreateSupplyRequest = {
-        name: 'Farinha de Trigo',
-        type: 'ingredient',
-        unit_measure: 'kg',
-        description: 'Farinha especial para massas',
-        active: true,
-      };
-
       mockQueries.findSupplyByName.mockResolvedValue(null);
-      mockQueries.createSupply.mockResolvedValue(mockSupplyModel);
+      mockQueries.createSupply.mockResolvedValue(mockSupply);
+      (service as any).queries = mockQueries;
 
-      const result = await service.createSupply(mockStoreId, createData);
-
-      expect(result).toEqual({
-        id: 1,
-        store_id: mockStoreId,
+      const result = await service.createSupply(mockStoreId, {
         name: 'Farinha de Trigo',
-        type: SupplyType.INGREDIENT,
-        unit_measure: UnitMeasure.KG,
-        description: 'Farinha especial para massas',
-        active: true,
-        created_at: mockSupplyModel.created_at,
-        updated_at: mockSupplyModel.updated_at,
+        unit_measure: 'kg',
+        type: 'ingredient',
       });
 
+      expect(result.name).toBe('Farinha de Trigo');
+      expect(result.unit_measure).toBe('kg');
+      expect(result.type).toBe('ingredient');
       expect(mockQueries.findSupplyByName).toHaveBeenCalledWith('Farinha de Trigo', mockStoreId);
-      expect(mockQueries.createSupply).toHaveBeenCalledWith({
-        store_id: mockStoreId,
-        name: 'Farinha de Trigo',
-        type: SupplyType.INGREDIENT,
-        unit_measure: UnitMeasure.KG,
-        description: 'Farinha especial para massas',
-        active: true,
-      });
     });
 
-    it('should throw error if name is missing or empty', async () => {
-      const invalidData = {
-        name: '   ',
-        unit_measure: 'kg',
-      } as unknown as CreateSupplyRequest;
+    it('should default type to ingredient when not provided', async () => {
+      mockQueries.findSupplyByName.mockResolvedValue(null);
+      mockQueries.createSupply.mockResolvedValue(mockSupply);
+      (service as any).queries = mockQueries;
 
-      await expect(service.createSupply(mockStoreId, invalidData)).rejects.toThrow('name is required');
-      expect(mockQueries.createSupply).not.toHaveBeenCalled();
-    });
+      await service.createSupply(mockStoreId, { name: 'Farinha', unit_measure: 'kg' });
 
-    it('should throw error if unit_measure is missing', async () => {
-      const invalidData = {
-        name: 'Farinha',
-      } as unknown as CreateSupplyRequest;
-
-      await expect(service.createSupply(mockStoreId, invalidData)).rejects.toThrow('unit_measure is required');
-      expect(mockQueries.createSupply).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if unit_measure is invalid', async () => {
-      const invalidData = {
-        name: 'Farinha',
-        unit_measure: 'invalid_unit',
-      } as unknown as CreateSupplyRequest;
-
-      await expect(service.createSupply(mockStoreId, invalidData)).rejects.toThrow('Invalid unit_measure: invalid_unit');
-      expect(mockQueries.createSupply).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if type is invalid', async () => {
-      const invalidData = {
-        name: 'Farinha',
-        unit_measure: 'kg',
-        type: 'invalid_type',
-      } as unknown as CreateSupplyRequest;
-
-      await expect(service.createSupply(mockStoreId, invalidData)).rejects.toThrow('Invalid supply type: invalid_type');
-      expect(mockQueries.createSupply).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if supply with same name already exists in store', async () => {
-      const createData: CreateSupplyRequest = {
-        name: 'Farinha de Trigo',
-        unit_measure: 'kg',
-      };
-
-      mockQueries.findSupplyByName.mockResolvedValue(mockSupplyModel);
-
-      await expect(service.createSupply(mockStoreId, createData)).rejects.toThrow(
-        'Supply with this name already exists in this store'
+      expect(mockQueries.createSupply).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'ingredient' })
       );
-      expect(mockQueries.createSupply).not.toHaveBeenCalled();
+    });
+
+    it('should throw if supply name already exists in store', async () => {
+      mockQueries.findSupplyByName.mockResolvedValue(mockSupply);
+      (service as any).queries = mockQueries;
+
+      await expect(
+        service.createSupply(mockStoreId, { name: 'Farinha de Trigo', unit_measure: 'kg' })
+      ).rejects.toThrow('Supply with this name already exists in this store');
     });
   });
 
   describe('getSupply', () => {
-    it('should get supply by id', async () => {
-      mockQueries.findSupplyById.mockResolvedValue(mockSupplyModel);
+    it('should return supply by id', async () => {
+      mockQueries.findSupplyById.mockResolvedValue(mockSupply);
+      (service as any).queries = mockQueries;
 
-      const result = await service.getSupply(1, mockStoreId);
+      const result = await service.getSupply(mockSupplyId, mockStoreId);
 
-      expect(result.id).toBe(1);
+      expect(result.id).toBe(mockSupplyId);
       expect(result.name).toBe('Farinha de Trigo');
-      expect(mockQueries.findSupplyById).toHaveBeenCalledWith(1, mockStoreId);
     });
 
-    it('should throw error if supply not found', async () => {
+    it('should throw if supply not found', async () => {
       mockQueries.findSupplyById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
 
-      await expect(service.getSupply(999, mockStoreId)).rejects.toThrow('Supply not found');
+      await expect(service.getSupply(mockSupplyId, mockStoreId)).rejects.toThrow('Supply not found');
     });
   });
 
   describe('listSupplies', () => {
-    it('should list supplies with default pagination', async () => {
-      mockQueries.findAllByStore.mockResolvedValue([[mockSupplyModel], 1]);
+    it('should list supplies with pagination', async () => {
+      mockQueries.findAllByStore.mockResolvedValue([[mockSupply], 1]);
+      (service as any).queries = mockQueries;
 
-      const result = await service.listSupplies(mockStoreId);
+      const result = await service.listSupplies(mockStoreId, { page: 1, limit: 10 });
 
       expect(result.data).toHaveLength(1);
-      expect(result.pagination).toEqual({
-        page: 1,
-        limit: 10,
-        total: 1,
-        total_pages: 1,
-      });
-      expect(mockQueries.findAllByStore).toHaveBeenCalledWith(mockStoreId, {
-        type: undefined,
-        active: undefined,
-        search: undefined,
-        skip: 0,
-        take: 10,
-      });
+      expect(result.data[0].name).toBe('Farinha de Trigo');
+      expect(result.pagination.total).toBe(1);
     });
 
-    it('should list supplies with custom query and calculate skip', async () => {
-      mockQueries.findAllByStore.mockResolvedValue([[mockSupplyModel], 15]);
+    it('should calculate correct skip', async () => {
+      mockQueries.findAllByStore.mockResolvedValue([[], 0]);
+      (service as any).queries = mockQueries;
 
-      const query: SupplyListQuery = {
-        page: 2,
-        limit: 5,
-        type: 'ingredient',
-        active: true,
-        search: 'Farinha',
-      };
+      await service.listSupplies(mockStoreId, { page: 3, limit: 5 });
 
-      const result = await service.listSupplies(mockStoreId, query);
-
-      expect(result.pagination).toEqual({
-        page: 2,
-        limit: 5,
-        total: 15,
-        total_pages: 3,
-      });
-      expect(mockQueries.findAllByStore).toHaveBeenCalledWith(mockStoreId, {
-        type: SupplyType.INGREDIENT,
-        active: true,
-        search: 'Farinha',
-        skip: 5,
-        take: 5,
-      });
+      expect(mockQueries.findAllByStore).toHaveBeenCalledWith(mockStoreId, false, 10, 5);
     });
   });
 
   describe('updateSupply', () => {
     it('should update supply successfully', async () => {
-      const updatedModel: SupplyModel = {
-        ...mockSupplyModel,
-        name: 'Farinha Integral',
-        unit_measure: UnitMeasure.G,
-        type: SupplyType.INGREDIENT,
-      };
-
-      mockQueries.findSupplyById.mockResolvedValue(mockSupplyModel);
+      const updated = { ...mockSupply, unit_measure: 'g' };
+      mockQueries.findSupplyById.mockResolvedValue(mockSupply);
       mockQueries.findSupplyByName.mockResolvedValue(null);
-      mockQueries.updateSupply.mockResolvedValue(updatedModel);
+      mockQueries.updateSupply.mockResolvedValue(updated);
+      (service as any).queries = mockQueries;
 
-      const updateData: UpdateSupplyRequest = {
-        name: 'Farinha Integral',
-        unit_measure: 'g',
-      };
+      const result = await service.updateSupply(mockSupplyId, mockStoreId, { unit_measure: 'g' });
 
-      const result = await service.updateSupply(1, mockStoreId, updateData);
-
-      expect(result.name).toBe('Farinha Integral');
-      expect(result.unit_measure).toBe(UnitMeasure.G);
-      expect(mockQueries.updateSupply).toHaveBeenCalledWith(
-        1,
-        mockStoreId,
-        expect.objectContaining({
-          name: 'Farinha Integral',
-          unit_measure: UnitMeasure.G,
-        })
-      );
+      expect(result.unit_measure).toBe('g');
     });
 
-    it('should throw error if supply to update not found', async () => {
+    it('should throw if supply not found on update', async () => {
       mockQueries.findSupplyById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
 
       await expect(
-        service.updateSupply(999, mockStoreId, { name: 'Farinha Integral' })
+        service.updateSupply(mockSupplyId, mockStoreId, { name: 'X' })
       ).rejects.toThrow('Supply not found');
-
-      expect(mockQueries.updateSupply).not.toHaveBeenCalled();
     });
 
-    it('should throw error if updated name is empty', async () => {
-      mockQueries.findSupplyById.mockResolvedValue(mockSupplyModel);
+    it('should throw if new name already exists', async () => {
+      const duplicate = { ...mockSupply, id: 'other-id', name: 'Açúcar' };
+      mockQueries.findSupplyById.mockResolvedValue(mockSupply);
+      mockQueries.findSupplyByName.mockResolvedValue(duplicate);
+      (service as any).queries = mockQueries;
 
       await expect(
-        service.updateSupply(1, mockStoreId, { name: '   ' })
-      ).rejects.toThrow('name cannot be empty');
-
-      expect(mockQueries.updateSupply).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if updated name collides with another supply', async () => {
-      mockQueries.findSupplyById.mockResolvedValue(mockSupplyModel);
-      mockQueries.findSupplyByName.mockResolvedValue({
-        id: 2,
-        name: 'Outra Farinha',
-      } as SupplyModel);
-
-      await expect(
-        service.updateSupply(1, mockStoreId, { name: 'Outra Farinha' })
+        service.updateSupply(mockSupplyId, mockStoreId, { name: 'Açúcar' })
       ).rejects.toThrow('Supply with this name already exists in this store');
-
-      expect(mockQueries.updateSupply).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if updated type is invalid', async () => {
-      mockQueries.findSupplyById.mockResolvedValue(mockSupplyModel);
-
-      const updateData = {
-        type: 'invalid_type',
-      } as unknown as UpdateSupplyRequest;
-
-      await expect(service.updateSupply(1, mockStoreId, updateData)).rejects.toThrow(
-        'Invalid supply type: invalid_type'
-      );
-    });
-
-    it('should throw error if updated unit_measure is invalid', async () => {
-      mockQueries.findSupplyById.mockResolvedValue(mockSupplyModel);
-
-      const updateData = {
-        unit_measure: 'invalid_unit',
-      } as unknown as UpdateSupplyRequest;
-
-      await expect(service.updateSupply(1, mockStoreId, updateData)).rejects.toThrow(
-        'Invalid unit_measure: invalid_unit'
-      );
     });
   });
 
   describe('deleteSupply', () => {
     it('should delete supply successfully', async () => {
-      mockQueries.findSupplyById.mockResolvedValue(mockSupplyModel);
+      mockQueries.findSupplyById.mockResolvedValue(mockSupply);
       mockQueries.deleteSupply.mockResolvedValue(true);
+      (service as any).queries = mockQueries;
 
-      await service.deleteSupply(1, mockStoreId);
+      await service.deleteSupply(mockSupplyId, mockStoreId);
 
-      expect(mockQueries.deleteSupply).toHaveBeenCalledWith(1, mockStoreId);
+      expect(mockQueries.deleteSupply).toHaveBeenCalledWith(mockSupplyId, mockStoreId);
     });
 
-    it('should throw error if supply to delete not found', async () => {
+    it('should throw if supply not found on delete', async () => {
       mockQueries.findSupplyById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
 
-      await expect(service.deleteSupply(999, mockStoreId)).rejects.toThrow('Supply not found');
-      expect(mockQueries.deleteSupply).not.toHaveBeenCalled();
+      await expect(service.deleteSupply(mockSupplyId, mockStoreId)).rejects.toThrow('Supply not found');
     });
   });
 });

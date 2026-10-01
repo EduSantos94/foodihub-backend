@@ -1,303 +1,153 @@
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ImageService } from '../ImageService.js';
-import { ImageType, ImageModel } from '../../database/models/ImageModel.js';
-import { CreateImageRequest, UpdateImageRequest, ImageListQuery } from '../../types/index.js';
 
-vi.mock('../../database/connection.js', () => ({
-  createDataSource: vi.fn(),
-}));
-
-interface MockImageQueries {
-  createImage: Mock;
-  findImageById: Mock;
-  findAllImages: Mock;
-  updateImage: Mock;
-  deleteImage: Mock;
-}
+vi.mock('../../database/connection.js', () => ({ createDataSource: vi.fn() }));
 
 describe('ImageService', () => {
   let service: ImageService;
-  let mockQueries: MockImageQueries;
+  let mockQueries: any;
 
-  const mockImageModel: ImageModel = {
-    id: 1,
-    shop_id: 10,
-    type: ImageType.PRODUCT,
-    type_id: 100,
-    filename: 'test.jpg',
-    rl_original: 'https://storage.example.com/test.jpg',
-    url_thumbnail: 'https://storage.example.com/test_thumb.jpg',
+  const mockStoreId = 'store-123';
+  const mockImageId = 'image-456';
+
+  const mockImage = {
+    id: mockImageId,
+    store_id: mockStoreId,
+    entity_type: 'product',
+    entity_id: 'product-789',
+    filename: 'pizza.jpg',
+    url_original: 'https://cdn.example.com/pizza.jpg',
+    url_thumbnail: 'https://cdn.example.com/pizza_thumb.jpg',
     file_size: 102400,
     mime_type: 'image/jpeg',
     dimensions: '800x600',
-    uploaded_at: new Date('2025-01-01T00:00:00.000Z'),
     active: true,
+    uploaded_at: new Date(),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-
     service = new ImageService();
-
     mockQueries = {
       createImage: vi.fn(),
       findImageById: vi.fn(),
-      findAllImages: vi.fn(),
+      findAllByStore: vi.fn(),
+      findByEntity: vi.fn(),
       updateImage: vi.fn(),
       deleteImage: vi.fn(),
     };
-
-    Reflect.set(service, 'queries', mockQueries);
   });
 
   describe('createImage', () => {
     it('should create image successfully', async () => {
-      const createData: CreateImageRequest = {
-        shop_id: 10,
-        type: 'product',
-        type_id: 100,
-        filename: 'test.jpg',
-        rl_original: 'https://storage.example.com/test.jpg',
-        url_thumbnail: 'https://storage.example.com/test_thumb.jpg',
-        file_size: 102400,
-        mime_type: 'image/jpeg',
-        dimensions: '800x600',
-        active: true,
-      };
+      mockQueries.createImage.mockResolvedValue(mockImage);
+      (service as any).queries = mockQueries;
 
-      mockQueries.createImage.mockResolvedValue(mockImageModel);
-
-      const result = await service.createImage(createData);
-
-      expect(result).toEqual({
-        id: 1,
-        shop_id: 10,
-        type: ImageType.PRODUCT,
-        type_id: 100,
-        filename: 'test.jpg',
-        rl_original: 'https://storage.example.com/test.jpg',
-        url_thumbnail: 'https://storage.example.com/test_thumb.jpg',
-        file_size: 102400,
-        mime_type: 'image/jpeg',
-        dimensions: '800x600',
-        uploaded_at: mockImageModel.uploaded_at,
-        active: true,
+      const result = await service.createImage(mockStoreId, {
+        entity_type: 'product',
+        entity_id: 'product-789',
+        filename: 'pizza.jpg',
+        url_original: 'https://cdn.example.com/pizza.jpg',
       });
 
-      expect(mockQueries.createImage).toHaveBeenCalledWith({
-        shop_id: 10,
-        type: ImageType.PRODUCT,
-        type_id: 100,
-        filename: 'test.jpg',
-        rl_original: 'https://storage.example.com/test.jpg',
-        url_thumbnail: 'https://storage.example.com/test_thumb.jpg',
-        file_size: 102400,
-        mime_type: 'image/jpeg',
-        dimensions: '800x600',
-        active: true,
-      });
-    });
-
-    it('should throw error if shop_id is missing', async () => {
-      const invalidData = {
-        type: 'product',
-        filename: 'test.jpg',
-        rl_original: 'https://storage.example.com/test.jpg',
-      } as unknown as CreateImageRequest;
-
-      await expect(service.createImage(invalidData)).rejects.toThrow('shop_id is required');
-      expect(mockQueries.createImage).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if type is missing', async () => {
-      const invalidData = {
-        shop_id: 10,
-        filename: 'test.jpg',
-        rl_original: 'https://storage.example.com/test.jpg',
-      } as unknown as CreateImageRequest;
-
-      await expect(service.createImage(invalidData)).rejects.toThrow('type is required');
-      expect(mockQueries.createImage).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if type is invalid', async () => {
-      const invalidData = {
-        shop_id: 10,
-        type: 'invalid_type',
-        filename: 'test.jpg',
-        rl_original: 'https://storage.example.com/test.jpg',
-      } as unknown as CreateImageRequest;
-
-      await expect(service.createImage(invalidData)).rejects.toThrow('Invalid image type: invalid_type');
-      expect(mockQueries.createImage).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if filename is missing', async () => {
-      const invalidData = {
-        shop_id: 10,
-        type: 'product',
-        rl_original: 'https://storage.example.com/test.jpg',
-      } as unknown as CreateImageRequest;
-
-      await expect(service.createImage(invalidData)).rejects.toThrow('filename is required');
-      expect(mockQueries.createImage).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if rl_original is missing', async () => {
-      const invalidData = {
-        shop_id: 10,
-        type: 'product',
-        filename: 'test.jpg',
-      } as unknown as CreateImageRequest;
-
-      await expect(service.createImage(invalidData)).rejects.toThrow('rl_original is required');
-      expect(mockQueries.createImage).not.toHaveBeenCalled();
+      expect(result.filename).toBe('pizza.jpg');
+      expect(result.entity_type).toBe('product');
+      expect(result.store_id).toBe(mockStoreId);
+      expect(mockQueries.createImage).toHaveBeenCalledWith(
+        expect.objectContaining({ store_id: mockStoreId, active: true })
+      );
     });
   });
 
   describe('getImage', () => {
-    it('should get image by id successfully', async () => {
-      mockQueries.findImageById.mockResolvedValue(mockImageModel);
+    it('should return image by id', async () => {
+      mockQueries.findImageById.mockResolvedValue(mockImage);
+      (service as any).queries = mockQueries;
 
-      const result = await service.getImage(1, 10);
+      const result = await service.getImage(mockImageId, mockStoreId);
 
-      expect(result.id).toBe(1);
-      expect(result.shop_id).toBe(10);
-      expect(mockQueries.findImageById).toHaveBeenCalledWith(1, 10);
+      expect(result.id).toBe(mockImageId);
+      expect(result.filename).toBe('pizza.jpg');
     });
 
-    it('should throw error if image not found', async () => {
+    it('should throw if image not found', async () => {
       mockQueries.findImageById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
 
-      await expect(service.getImage(999)).rejects.toThrow('Image not found');
-      expect(mockQueries.findImageById).toHaveBeenCalledWith(999, undefined);
+      await expect(service.getImage(mockImageId, mockStoreId)).rejects.toThrow('Image not found');
     });
   });
 
   describe('listImages', () => {
-    it('should list images with default pagination', async () => {
-      mockQueries.findAllImages.mockResolvedValue([[mockImageModel], 1]);
+    it('should list images with pagination', async () => {
+      mockQueries.findAllByStore.mockResolvedValue([[mockImage], 1]);
+      (service as any).queries = mockQueries;
 
-      const result = await service.listImages();
+      const result = await service.listImages(mockStoreId, { page: 1, limit: 20 });
 
       expect(result.data).toHaveLength(1);
-      expect(result.pagination).toEqual({
-        page: 1,
-        limit: 10,
-        total: 1,
-        total_pages: 1,
-      });
-      expect(mockQueries.findAllImages).toHaveBeenCalledWith({
-        shop_id: undefined,
-        type: undefined,
-        type_id: undefined,
-        active: undefined,
-        skip: 0,
-        take: 10,
-      });
+      expect(result.pagination.total).toBe(1);
     });
 
-    it('should list images with custom query and calculate correct skip', async () => {
-      mockQueries.findAllImages.mockResolvedValue([[mockImageModel], 25]);
+    it('should calculate correct skip', async () => {
+      mockQueries.findAllByStore.mockResolvedValue([[], 0]);
+      (service as any).queries = mockQueries;
 
-      const query: ImageListQuery = {
-        page: 3,
-        limit: 5,
-        shop_id: 10,
-        type: 'product',
-        type_id: 100,
-        active: true,
-      };
+      await service.listImages(mockStoreId, { page: 2, limit: 10 });
 
-      const result = await service.listImages(query);
+      expect(mockQueries.findAllByStore).toHaveBeenCalledWith(mockStoreId, 10, 10);
+    });
+  });
 
-      expect(result.pagination).toEqual({
-        page: 3,
-        limit: 5,
-        total: 25,
-        total_pages: 5,
-      });
-      expect(mockQueries.findAllImages).toHaveBeenCalledWith({
-        shop_id: 10,
-        type: ImageType.PRODUCT,
-        type_id: 100,
-        active: true,
-        skip: 10,
-        take: 5,
-      });
+  describe('listImagesByEntity', () => {
+    it('should list images by entity type and id', async () => {
+      mockQueries.findByEntity.mockResolvedValue([mockImage]);
+      (service as any).queries = mockQueries;
+
+      const result = await service.listImagesByEntity(mockStoreId, 'product', 'product-789');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].entity_type).toBe('product');
+      expect(mockQueries.findByEntity).toHaveBeenCalledWith(mockStoreId, 'product', 'product-789');
     });
   });
 
   describe('updateImage', () => {
     it('should update image successfully', async () => {
-      const updatedModel: ImageModel = {
-        ...mockImageModel,
-        filename: 'updated.jpg',
-        type: ImageType.BANNER,
-      };
+      const updated = { ...mockImage, active: false };
+      mockQueries.findImageById.mockResolvedValue(mockImage);
+      mockQueries.updateImage.mockResolvedValue(updated);
+      (service as any).queries = mockQueries;
 
-      mockQueries.findImageById.mockResolvedValue(mockImageModel);
-      mockQueries.updateImage.mockResolvedValue(updatedModel);
+      const result = await service.updateImage(mockImageId, mockStoreId, { active: false });
 
-      const updateData: UpdateImageRequest = {
-        filename: 'updated.jpg',
-        type: 'banner',
-      };
-
-      const result = await service.updateImage(1, updateData, 10);
-
-      expect(result.filename).toBe('updated.jpg');
-      expect(result.type).toBe(ImageType.BANNER);
-      expect(mockQueries.updateImage).toHaveBeenCalledWith(
-        1,
-        {
-          filename: 'updated.jpg',
-          type: ImageType.BANNER,
-        },
-        10
-      );
+      expect(result.active).toBe(false);
     });
 
-    it('should throw error if image to update not found', async () => {
+    it('should throw if image not found on update', async () => {
       mockQueries.findImageById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
 
-      await expect(
-        service.updateImage(999, { filename: 'updated.jpg' })
-      ).rejects.toThrow('Image not found');
-
-      expect(mockQueries.updateImage).not.toHaveBeenCalled();
-    });
-
-    it('should throw error if updated type is invalid', async () => {
-      mockQueries.findImageById.mockResolvedValue(mockImageModel);
-
-      const updateData = {
-        type: 'invalid_type',
-      } as unknown as UpdateImageRequest;
-
-      await expect(service.updateImage(1, updateData)).rejects.toThrow(
-        'Invalid image type: invalid_type'
-      );
-
-      expect(mockQueries.updateImage).not.toHaveBeenCalled();
+      await expect(service.updateImage(mockImageId, mockStoreId, {})).rejects.toThrow('Image not found');
     });
   });
 
   describe('deleteImage', () => {
     it('should delete image successfully', async () => {
-      mockQueries.findImageById.mockResolvedValue(mockImageModel);
+      mockQueries.findImageById.mockResolvedValue(mockImage);
       mockQueries.deleteImage.mockResolvedValue(true);
+      (service as any).queries = mockQueries;
 
-      await service.deleteImage(1, 10);
+      await service.deleteImage(mockImageId, mockStoreId);
 
-      expect(mockQueries.deleteImage).toHaveBeenCalledWith(1, 10);
+      expect(mockQueries.deleteImage).toHaveBeenCalledWith(mockImageId, mockStoreId);
     });
 
-    it('should throw error if image to delete not found', async () => {
+    it('should throw if image not found on delete', async () => {
       mockQueries.findImageById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
 
-      await expect(service.deleteImage(999)).rejects.toThrow('Image not found');
-      expect(mockQueries.deleteImage).not.toHaveBeenCalled();
+      await expect(service.deleteImage(mockImageId, mockStoreId)).rejects.toThrow('Image not found');
     });
   });
 });

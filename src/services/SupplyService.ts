@@ -1,13 +1,13 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
-import { SupplyModel, SupplyType, UnitMeasure } from '../database/models/SupplyModel.js';
+import { SupplyModel } from '../database/models/SupplyModel.js';
 import { SupplyQueries } from '../database/queries/SupplyQueries.js';
 import {
   CreateSupplyRequest,
   UpdateSupplyRequest,
   SupplyResponse,
   PaginatedResponse,
-  SupplyListQuery,
+  PaginationQuery,
 } from '../types/index.js';
 
 export class SupplyService {
@@ -25,127 +25,61 @@ export class SupplyService {
   async createSupply(storeId: string, data: CreateSupplyRequest): Promise<SupplyResponse> {
     const q = await this.ensureQueries();
 
-    if (!data.name || !data.name.trim()) {
-      throw new Error('name is required');
-    }
-    if (!data.unit_measure) {
-      throw new Error('unit_measure is required');
-    }
-    if (!Object.values(UnitMeasure).includes(data.unit_measure as UnitMeasure)) {
-      throw new Error(`Invalid unit_measure: ${data.unit_measure}`);
-    }
-    if (data.type && !Object.values(SupplyType).includes(data.type as SupplyType)) {
-      throw new Error(`Invalid supply type: ${data.type}`);
-    }
-
-    const trimmedName = data.name.trim();
-    const existing = await q.findSupplyByName(trimmedName, storeId);
-    if (existing) {
-      throw new Error('Supply with this name already exists in this store');
-    }
+    const existing = await q.findSupplyByName(data.name, storeId);
+    if (existing) throw new Error('Supply with this name already exists in this store');
 
     const supply = await q.createSupply({
       store_id: storeId,
-      name: trimmedName,
-      type: (data.type as SupplyType) || SupplyType.INGREDIENT,
-      unit_measure: data.unit_measure as UnitMeasure,
+      name: data.name,
+      type: data.type ?? 'ingredient',
+      unit_measure: data.unit_measure,
       description: data.description,
-      active: data.active !== undefined ? data.active : true,
+      active: true,
     });
-
     return this.mapSupply(supply);
   }
 
-  async getSupply(id: number, storeId: string): Promise<SupplyResponse> {
+  async getSupply(id: string, storeId: string): Promise<SupplyResponse> {
     const q = await this.ensureQueries();
     const supply = await q.findSupplyById(id, storeId);
-    if (!supply) {
-      throw new Error('Supply not found');
-    }
+    if (!supply) throw new Error('Supply not found');
     return this.mapSupply(supply);
   }
 
   async listSupplies(
     storeId: string,
-    query: SupplyListQuery = {}
+    query: PaginationQuery
   ): Promise<PaginatedResponse<SupplyResponse>> {
     const q = await this.ensureQueries();
-    const page = Math.max(1, Number(query.page) || 1);
-    const limit = Math.max(1, Number(query.limit) || 10);
+    const page = query.page || 1;
+    const limit = query.limit || 10;
     const skip = (page - 1) * limit;
 
-    const [supplies, total] = await q.findAllByStore(storeId, {
-      type: query.type as SupplyType | undefined,
-      active: query.active,
-      search: query.search,
-      skip,
-      take: limit,
-    });
-
+    const [supplies, total] = await q.findAllByStore(storeId, false, skip, limit);
     return {
       data: supplies.map((s) => this.mapSupply(s)),
-      pagination: {
-        page,
-        limit,
-        total,
-        total_pages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
     };
   }
 
-  async updateSupply(
-    id: number,
-    storeId: string,
-    data: UpdateSupplyRequest
-  ): Promise<SupplyResponse> {
+  async updateSupply(id: string, storeId: string, data: UpdateSupplyRequest): Promise<SupplyResponse> {
     const q = await this.ensureQueries();
     const existing = await q.findSupplyById(id, storeId);
-    if (!existing) {
-      throw new Error('Supply not found');
+    if (!existing) throw new Error('Supply not found');
+
+    if (data.name && data.name !== existing.name) {
+      const duplicate = await q.findSupplyByName(data.name, storeId);
+      if (duplicate) throw new Error('Supply with this name already exists in this store');
     }
 
-    if (data.name !== undefined) {
-      const trimmedName = data.name.trim();
-      if (!trimmedName) {
-        throw new Error('name cannot be empty');
-      }
-      if (trimmedName !== existing.name) {
-        const duplicate = await q.findSupplyByName(trimmedName, storeId);
-        if (duplicate) {
-          throw new Error('Supply with this name already exists in this store');
-        }
-      }
-    }
-
-    if (data.type && !Object.values(SupplyType).includes(data.type as SupplyType)) {
-      throw new Error(`Invalid supply type: ${data.type}`);
-    }
-
-    if (data.unit_measure && !Object.values(UnitMeasure).includes(data.unit_measure as UnitMeasure)) {
-      throw new Error(`Invalid unit_measure: ${data.unit_measure}`);
-    }
-
-    const updated = await q.updateSupply(
-      id,
-      storeId,
-      {
-        ...data,
-        name: data.name !== undefined ? data.name.trim() : undefined,
-        type: data.type as SupplyType | undefined,
-        unit_measure: data.unit_measure as UnitMeasure | undefined,
-        updated_at: new Date(),
-      }
-    );
-
+    const updated = await q.updateSupply(id, storeId, { ...data, updated_at: new Date() });
     return this.mapSupply(updated!);
   }
 
-  async deleteSupply(id: number, storeId: string): Promise<void> {
+  async deleteSupply(id: string, storeId: string): Promise<void> {
     const q = await this.ensureQueries();
     const existing = await q.findSupplyById(id, storeId);
-    if (!existing) {
-      throw new Error('Supply not found');
-    }
+    if (!existing) throw new Error('Supply not found');
     await q.deleteSupply(id, storeId);
   }
 

@@ -267,7 +267,6 @@ export interface CustomerResponse {
   updated_at: Date;
 }
 
-
 // ==================== Supplier ====================
 export interface CreateSupplierRequest {
   name: string;
@@ -315,80 +314,64 @@ export interface SupplierResponse {
 }
 
 // ==================== Image ====================
-export type ImageTypeUnion = 'shop' | 'product' | 'supplier' | 'banner' | 'category' | 'promotional' | 'others';
+export type ImageEntityType = 'store' | 'product' | 'supplier' | 'banner' | 'category' | 'promotional' | 'other';
 
 export interface CreateImageRequest {
-  shop_id: number;
-  type: ImageTypeUnion;
-  type_id?: number;
+  entity_type: ImageEntityType;
+  entity_id?: string;
   filename: string;
-  rl_original: string;
+  url_original: string;
   url_thumbnail?: string;
   file_size?: number;
   mime_type?: string;
   dimensions?: string;
-  active?: boolean;
 }
 
 export interface UpdateImageRequest {
-  type?: ImageTypeUnion;
-  type_id?: number;
-  filename?: string;
-  rl_original?: string;
+  entity_type?: ImageEntityType;
+  entity_id?: string;
   url_thumbnail?: string;
-  file_size?: number;
-  mime_type?: string;
-  dimensions?: string;
   active?: boolean;
 }
 
 export interface ImageResponse {
-  id: number;
-  shop_id: number;
-  type: string;
-  type_id?: number;
+  id: string;
+  store_id: string;
+  entity_type: ImageEntityType;
+  entity_id?: string;
   filename: string;
-  rl_original: string;
+  url_original: string;
   url_thumbnail?: string;
   file_size?: number;
   mime_type?: string;
   dimensions?: string;
-  uploaded_at: Date;
   active: boolean;
-}
-
-export interface ImageListQuery extends PaginationQuery {
-  shop_id?: number;
-  type?: ImageTypeUnion;
-  type_id?: number;
-  active?: boolean;
+  uploaded_at: Date;
 }
 
 // ==================== Supply ====================
-export type SupplyTypeUnion = 'ingredient' | 'packaging' | 'cleaning' | 'utensil' | 'office' | 'other';
-export type UnitMeasureUnion = 'un' | 'kg' | 'g' | 'l' | 'ml' | 'cx' | 'pct' | 'dz' | 'm' | 'other';
+export type SupplyType = 'ingredient' | 'packaging' | 'cleaning' | 'other';
 
 export interface CreateSupplyRequest {
   name: string;
-  type?: SupplyTypeUnion;
-  unit_measure: UnitMeasureUnion;
+  type?: SupplyType;
+  unit_measure: string;
   description?: string;
-  active?: boolean;
 }
 
 export interface UpdateSupplyRequest {
   name?: string;
-  type?: SupplyTypeUnion;
-  unit_measure?: UnitMeasureUnion;
+  type?: SupplyType;
+  unit_measure?: string;
   description?: string;
   active?: boolean;
 }
 
 export interface SupplyResponse {
-  id: number;
+  id: string;
   store_id: string;
   name: string;
-  type: string;
+  type: SupplyType;
   unit_measure: string;
   description?: string;
   active: boolean;
@@ -396,8 +379,72 @@ export interface SupplyResponse {
   updated_at: Date;
 }
 
-export interface SupplyListQuery extends PaginationQuery {
-  type?: SupplyTypeUnion;
-  active?: boolean;
-  search?: string;
+// ==================== Purchase ====================
+export type PaymentStatus = 'pending' | 'partial' | 'paid' | 'cancelled';
+export type PaymentMethod = 'cash' | 'credit_card' | 'debit_card' | 'bank_transfer' | 'pix' | 'other';
+
+export interface CreatePurchaseItemRequest {
+  supply_id: string;
+  quantity: number;
+  unit_price: number;
+  batch_number?: string;
+  manufacturing_date?: string;
+  expiry_date?: string;
+}
+
+export interface CreatePurchaseRequest {
+  supplier_id: string;
+  purchase_date: string;
+  delivery_date?: string;
+  purchase_number?: string;
+  invoice_number?: string;
+  invoice_date?: string;
+  payment_method?: PaymentMethod;
+  notes?: string;
+  items: CreatePurchaseItemRequest[];
+}
+
+export interface UpdatePurchaseRequest {
+  purchase_date?: string;
+  delivery_date?: string;
+  purchase_number?: string;
+  invoice_number?: string;
+  invoice_date?: string;
+  paid_amount?: number;
+  payment_status?: PaymentStatus;
+  payment_method?: PaymentMethod;
+  payment_date?: string;
+  notes?: string;
+}
+
+export interface PurchaseItemResponse {
+  id: string;
+  purchase_id: string;
+  supply_id: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  batch_number?: string;
+  manufacturing_date?: Date;
+  expiry_date?: Date;
+}
+
+export interface PurchaseResponse {
+  id: string;
+  store_id: string;
+  supplier_id: string;
+  purchase_number?: string;
+  purchase_date: Date;
+  delivery_date?: Date;
+  invoice_number?: string;
+  invoice_date?: Date;
+  total_amount: number;
+  paid_amount: number;
+  payment_status: PaymentStatus;
+  payment_method?: PaymentMethod;
+  payment_date?: Date;
+  notes?: string;
+  items?: PurchaseItemResponse[];
+  created_at: Date;
+  updated_at: Date;
 }

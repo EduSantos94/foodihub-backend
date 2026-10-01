@@ -10,6 +10,8 @@ import { CustomerModel } from './models/CustomerModel.js';
 import { SupplierModel } from './models/SupplierModel.js';
 import { ImageModel } from './models/ImageModel.js';
 import { SupplyModel } from './models/SupplyModel.js';
+import { PurchaseModel } from './models/PurchaseModel.js';
+import { PurchaseItemModel } from './models/PurchaseItemModel.js';
 
 export let AppDataSource: DataSource;
 
@@ -27,7 +29,7 @@ export async function createDataSource() {
     database: process.env.DB_NAME || 'foodihub',
     synchronize: false,
     logging: process.env.NODE_ENV === 'development',
-    entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel, SupplierModel, ImageModel, SupplyModel],
+    entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel, SupplierModel, ImageModel, SupplyModel, PurchaseModel, PurchaseItemModel],
     migrations: ['dist/database/migrations/**/*.js'],
     subscribers: ['dist/database/subscribers/**/*.js'],
   });

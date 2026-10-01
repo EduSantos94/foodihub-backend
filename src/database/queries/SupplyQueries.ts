@@ -1,13 +1,5 @@
-import { Repository, FindOptionsWhere, ILike } from 'typeorm';
-import { SupplyModel, SupplyType } from '../models/SupplyModel.js';
-
-export interface FindSuppliesOptions {
-  type?: SupplyType;
-  active?: boolean;
-  search?: string;
-  skip?: number;
-  take?: number;
-}
+import { Repository } from 'typeorm';
+import { SupplyModel } from '../models/SupplyModel.js';
 
 export class SupplyQueries {
   constructor(private supplyRepository: Repository<SupplyModel>) {}
@@ -17,9 +9,9 @@ export class SupplyQueries {
     return this.supplyRepository.save(supply);
   }
 
-  async findSupplyById(id: number, storeId: string): Promise<SupplyModel | null> {
+  async findSupplyById(id: string, storeId: string): Promise<SupplyModel | null> {
     return this.supplyRepository.findOne({
-      where: { id, store_id: storeId },
+      where: { id, store_id: storeId, active: undefined },
     });
   }
 
@@ -31,20 +23,12 @@ export class SupplyQueries {
 
   async findAllByStore(
     storeId: string,
-    options: FindSuppliesOptions = {}
+    onlyActive = false,
+    skip = 0,
+    take = 10
   ): Promise<[SupplyModel[], number]> {
-    const { type, active, search, skip = 0, take = 10 } = options;
-    const where: FindOptionsWhere<SupplyModel> = { store_id: storeId };
-
-    if (type !== undefined) {
-      where.type = type;
-    }
-    if (active !== undefined) {
-      where.active = active;
-    }
-    if (search) {
-      where.name = ILike(`%${search}%`);
-    }
+    const where: any = { store_id: storeId };
+    if (onlyActive) where.active = true;
 
     return this.supplyRepository.findAndCount({
       where,
@@ -54,16 +38,12 @@ export class SupplyQueries {
     });
   }
 
-  async updateSupply(
-    id: number,
-    storeId: string,
-    data: Partial<SupplyModel>
-  ): Promise<SupplyModel | null> {
+  async updateSupply(id: string, storeId: string, data: Partial<SupplyModel>): Promise<SupplyModel | null> {
     await this.supplyRepository.update({ id, store_id: storeId }, data);
     return this.findSupplyById(id, storeId);
   }
 
-  async deleteSupply(id: number, storeId: string): Promise<boolean> {
+  async deleteSupply(id: string, storeId: string): Promise<boolean> {
     const result = await this.supplyRepository.delete({ id, store_id: storeId });
     return (result.affected || 0) > 0;
   }

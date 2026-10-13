@@ -37,24 +37,20 @@ export class PurchaseService {
       return sum + item.quantity * item.unit_price;
     }, 0);
 
-    const purchase = await q.createPurchase({
-      store_id: storeId,
-      supplier_id: data.supplier_id,
-      purchase_number: data.purchase_number,
-      purchase_date: new Date(data.purchase_date),
-      delivery_date: data.delivery_date ? new Date(data.delivery_date) : undefined,
-      invoice_number: data.invoice_number,
-      invoice_date: data.invoice_date ? new Date(data.invoice_date) : undefined,
-      total_amount,
-      paid_amount: 0,
-      payment_status: 'pending',
-      payment_method: data.payment_method,
-      notes: data.notes,
-    });
+    // Supplier and supplies must belong to this store (tenant isolation)
+    const supplier = await q.findSupplierById(data.supplier_id, storeId);
+    if (!supplier) throw new Error('Supplier not found');
 
-    // Create items with total_price calculated
+    for (const item of data.items) {
+      if (!(item.quantity > 0)) throw new Error('Item quantity must be greater than zero');
+      if (item.unit_price < 0) throw new Error('Item unit_price cannot be negative');
+    }
+
+    const supplyIds = [...new Set(data.items.map((i) => i.supply_id))];
+    const found = await q.countSuppliesInStore(supplyIds, storeId);
+    if (found !== supplyIds.length) throw new Error('Supply not found');
+
     const itemsData = data.items.map((item) => ({
-      purchase_id: purchase.id,
       supply_id: item.supply_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
@@ -64,10 +60,26 @@ export class PurchaseService {
       expiry_date: item.expiry_date ? new Date(item.expiry_date) : undefined,
     }));
 
-    await q.createItems(itemsData);
-    await q.adjustSupplyStock(storeId, itemsData, 1);
+    // Purchase, items and the supplies.amount increase are saved in one transaction
+    const purchaseId = await q.createPurchaseWithItems(
+      {
+        store_id: storeId,
+        supplier_id: data.supplier_id,
+        purchase_number: data.purchase_number,
+        purchase_date: new Date(data.purchase_date),
+        delivery_date: data.delivery_date ? new Date(data.delivery_date) : undefined,
+        invoice_number: data.invoice_number,
+        invoice_date: data.invoice_date ? new Date(data.invoice_date) : undefined,
+        total_amount,
+        paid_amount: 0,
+        payment_status: 'pending',
+        payment_method: data.payment_method,
+        notes: data.notes,
+      },
+      itemsData
+    );
 
-    const full = await q.findPurchaseById(purchase.id, storeId);
+    const full = await q.findPurchaseById(purchaseId, storeId);
     return this.mapPurchase(full!);
   }
 
@@ -119,11 +131,10 @@ export class PurchaseService {
     const q = await this.ensureQueries();
     const existing = await q.findPurchaseById(id, storeId);
     if (!existing) throw new Error('Purchase not found');
-    await q.deletePurchase(id, storeId);
-    await q.adjustSupplyStock(
+    await q.deletePurchaseAndRevertStock(
+      id,
       storeId,
-      (existing.items ?? []).map((i) => ({ supply_id: i.supply_id, quantity: Number(i.quantity) })),
-      -1
+      (existing.items ?? []).map((i: PurchaseItemModel) => ({ supply_id: i.supply_id, quantity: Number(i.quantity) }))
     );
   }
 

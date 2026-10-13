@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { SaleController } from '../controllers/SaleController.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, authorizeRole } from '../middleware/auth.js';
 
 const router = Router();
 const controller = new SaleController();
@@ -19,7 +19,7 @@ router.get('/:id', (req, res) => controller.getSale(req, res));
 // PUT /api/sales/:id - update status, payment, notes (status=cancelled restores stock)
 router.put('/:id', (req, res) => controller.updateSale(req, res));
 
-// POST /api/sales/:id/cancel - cancel sale and restore stock
-router.post('/:id/cancel', (req, res) => controller.cancelSale(req, res));
+// POST /api/sales/:id/cancel - cancel sale and restore stock (admin/manager only)
+router.post('/:id/cancel', authorizeRole('admin', 'manager'), (req, res) => controller.cancelSale(req, res));
 
 export { router as saleRoutes };

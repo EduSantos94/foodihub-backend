@@ -15,6 +15,7 @@ import { supplyRoutes } from './routes/supply.routes.js';
 import { purchaseRoutes } from './routes/purchase.routes.js';
 import { saleRoutes } from './routes/sale.routes.js';
 import { integrationRoutes } from './routes/integration.routes.js';
+import { startWebhookWorker } from './services/WebhookWorker.js';
 
 dotenv.config();
 
@@ -98,6 +99,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // ==================== Server Start ====================
 const startServer = async () => {
   await initializeDatabase();
+  startWebhookWorker();
 
   app.listen(PORT, () => {
     console.log(`\n🚀 Server running on port ${PORT}`);

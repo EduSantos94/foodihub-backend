@@ -107,6 +107,20 @@ describe('SaleController', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Sale updated successfully' }));
     });
 
+    it('should forbid staff from cancelling through PUT, but allow managers', async () => {
+      req.params = { id: 'sale-1' };
+      req.body = { status: 'cancelled' };
+      req.user.role = 'staff';
+      await controller.updateSale(req, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(mockService.updateSale).not.toHaveBeenCalled();
+
+      req.user.role = 'manager';
+      mockService.updateSale.mockResolvedValue(sale);
+      await controller.updateSale(req, res);
+      expect(mockService.updateSale).toHaveBeenCalled();
+    });
+
     it('should cancel a sale', async () => {
       req.params = { id: 'sale-1' };
       mockService.cancelSale.mockResolvedValue({ ...sale, status: 'cancelled' });

@@ -40,20 +40,18 @@ describe('PurchaseService', () => {
     vi.clearAllMocks();
     service = new PurchaseService();
     mockQueries = {
-      createPurchase: vi.fn(),
-      createItems: vi.fn(),
+      findSupplierById: vi.fn().mockResolvedValue({ id: mockSupplierId, store_id: mockStoreId }),
+      countSuppliesInStore: vi.fn(async (ids: string[]) => ids.length),
+      createPurchaseWithItems: vi.fn().mockResolvedValue(mockPurchaseId),
       findPurchaseById: vi.fn(),
       findAllByStore: vi.fn(),
       updatePurchase: vi.fn(),
-      deletePurchase: vi.fn(),
-      adjustSupplyStock: vi.fn(),
+      deletePurchaseAndRevertStock: vi.fn(),
     };
   });
 
   describe('createPurchase', () => {
-    it('should create purchase with items and calculate total', async () => {
-      mockQueries.createPurchase.mockResolvedValue({ ...mockPurchase, items: undefined });
-      mockQueries.createItems.mockResolvedValue([mockItem]);
+    it('should create purchase with items, calculate total and add supply stock in one call', async () => {
       mockQueries.findPurchaseById.mockResolvedValue(mockPurchase);
       (service as any).queries = mockQueries;
 
@@ -65,26 +63,17 @@ describe('PurchaseService', () => {
       });
 
       expect(result.total_amount).toBe(55);
-      expect(mockQueries.adjustSupplyStock).toHaveBeenCalledWith(
-        mockStoreId,
-        [expect.objectContaining({ supply_id: 'supply-1', quantity: 10 })],
-        1
-      );
       expect(result.payment_status).toBe('pending');
       expect(result.items).toHaveLength(1);
-      expect(mockQueries.createPurchase).toHaveBeenCalledWith(
+      expect(mockQueries.createPurchaseWithItems).toHaveBeenCalledWith(
         expect.objectContaining({
           store_id: mockStoreId,
           supplier_id: mockSupplierId,
           total_amount: 55,
           paid_amount: 0,
           payment_status: 'pending',
-        })
-      );
-      expect(mockQueries.createItems).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ supply_id: 'supply-1', quantity: 10, unit_price: 5.5, total_price: 55 }),
-        ])
+        }),
+        [expect.objectContaining({ supply_id: 'supply-1', quantity: 10, unit_price: 5.5, total_price: 55 })]
       );
     });
 
@@ -101,8 +90,6 @@ describe('PurchaseService', () => {
     });
 
     it('should calculate total from multiple items', async () => {
-      mockQueries.createPurchase.mockResolvedValue({ ...mockPurchase, items: undefined });
-      mockQueries.createItems.mockResolvedValue([]);
       mockQueries.findPurchaseById.mockResolvedValue({ ...mockPurchase, total_amount: 150 });
       (service as any).queries = mockQueries;
 
@@ -115,9 +102,76 @@ describe('PurchaseService', () => {
         ],
       });
 
-      expect(mockQueries.createPurchase).toHaveBeenCalledWith(
-        expect.objectContaining({ total_amount: 150 })
+      expect(mockQueries.createPurchaseWithItems).toHaveBeenCalledWith(
+        expect.objectContaining({ total_amount: 150 }),
+        expect.any(Array)
       );
+    });
+
+    it('should reject a supplier from another store', async () => {
+      mockQueries.findSupplierById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
+
+      await expect(
+        service.createPurchase(mockStoreId, {
+          supplier_id: 'foreign',
+          purchase_date: '2026-01-15',
+          items: [{ supply_id: 'supply-1', quantity: 1, unit_price: 1 }],
+        })
+      ).rejects.toThrow('Supplier not found');
+      expect(mockQueries.createPurchaseWithItems).not.toHaveBeenCalled();
+    });
+
+    it('should reject supplies that do not belong to the store', async () => {
+      mockQueries.countSuppliesInStore.mockResolvedValue(1);
+      (service as any).queries = mockQueries;
+
+      await expect(
+        service.createPurchase(mockStoreId, {
+          supplier_id: mockSupplierId,
+          purchase_date: '2026-01-15',
+          items: [
+            { supply_id: 'supply-1', quantity: 1, unit_price: 1 },
+            { supply_id: 'foreign-supply', quantity: 1, unit_price: 1 },
+          ],
+        })
+      ).rejects.toThrow('Supply not found');
+      expect(mockQueries.createPurchaseWithItems).not.toHaveBeenCalled();
+    });
+
+    it('should count a repeated supply only once when validating', async () => {
+      mockQueries.findPurchaseById.mockResolvedValue(mockPurchase);
+      (service as any).queries = mockQueries;
+
+      await service.createPurchase(mockStoreId, {
+        supplier_id: mockSupplierId,
+        purchase_date: '2026-01-15',
+        items: [
+          { supply_id: 'supply-1', quantity: 1, unit_price: 1 },
+          { supply_id: 'supply-1', quantity: 2, unit_price: 1 },
+        ],
+      });
+
+      expect(mockQueries.countSuppliesInStore).toHaveBeenCalledWith(['supply-1'], mockStoreId);
+    });
+
+    it('should reject non-positive quantities and negative prices', async () => {
+      (service as any).queries = mockQueries;
+
+      await expect(
+        service.createPurchase(mockStoreId, {
+          supplier_id: mockSupplierId,
+          purchase_date: '2026-01-15',
+          items: [{ supply_id: 'supply-1', quantity: 0, unit_price: 1 }],
+        })
+      ).rejects.toThrow('greater than zero');
+      await expect(
+        service.createPurchase(mockStoreId, {
+          supplier_id: mockSupplierId,
+          purchase_date: '2026-01-15',
+          items: [{ supply_id: 'supply-1', quantity: 1, unit_price: -1 }],
+        })
+      ).rejects.toThrow('negative');
     });
   });
 
@@ -193,16 +247,15 @@ describe('PurchaseService', () => {
   describe('deletePurchase', () => {
     it('should delete purchase successfully', async () => {
       mockQueries.findPurchaseById.mockResolvedValue(mockPurchase);
-      mockQueries.deletePurchase.mockResolvedValue(true);
+      mockQueries.deletePurchaseAndRevertStock.mockResolvedValue(true);
       (service as any).queries = mockQueries;
 
       await service.deletePurchase(mockPurchaseId, mockStoreId);
 
-      expect(mockQueries.deletePurchase).toHaveBeenCalledWith(mockPurchaseId, mockStoreId);
-      expect(mockQueries.adjustSupplyStock).toHaveBeenCalledWith(
+      expect(mockQueries.deletePurchaseAndRevertStock).toHaveBeenCalledWith(
+        mockPurchaseId,
         mockStoreId,
-        [{ supply_id: 'supply-1', quantity: 10 }],
-        -1
+        [{ supply_id: 'supply-1', quantity: 10 }]
       );
     });
 

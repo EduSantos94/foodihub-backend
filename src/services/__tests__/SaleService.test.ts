@@ -6,6 +6,7 @@ vi.mock('../../database/connection.js', () => ({ createDataSource: vi.fn() }));
 describe('SaleService', () => {
   let service: SaleService;
   let mockQueries: any;
+  let mockDispatcher: any;
 
   const storeId = 'store-123';
   const userId = 'user-1';
@@ -46,7 +47,9 @@ describe('SaleService', () => {
       updateSale: vi.fn(),
       cancelSale: vi.fn(),
     };
+    mockDispatcher = { enqueue: vi.fn().mockResolvedValue(1) };
     (service as any).queries = mockQueries;
+    (service as any).dispatcher = mockDispatcher;
   });
 
   describe('createSale', () => {
@@ -75,6 +78,20 @@ describe('SaleService', () => {
       expect(items[0]).toMatchObject({ product_name: 'Cookie', unit_price: 4.5, total_price: 9, quantity: 2 });
       expect(result.total_amount).toBe(9);
       expect(result.items).toHaveLength(1);
+      expect(mockDispatcher.enqueue).toHaveBeenCalledWith(storeId, 'order.created', expect.objectContaining({ id: saleId }));
+    });
+
+    it('should not fail the sale if queuing the webhook fails', async () => {
+      mockQueries.findProductById.mockResolvedValue(product);
+      mockQueries.createSaleWithItems.mockResolvedValue(saleId);
+      mockQueries.findSaleById.mockResolvedValue(savedSale);
+      mockDispatcher.enqueue.mockRejectedValue(new Error('db down'));
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await service.createSale(storeId, userId, { items: [{ product_id: 'prod-1', quantity: 2 }] });
+
+      expect(result.id).toBe(saleId);
+      spy.mockRestore();
     });
 
     it('should throw if there are no items', async () => {
@@ -190,6 +207,7 @@ describe('SaleService', () => {
         storeId,
         expect.objectContaining({ payment_status: 'paid', paid_at: expect.any(Date) })
       );
+      expect(mockDispatcher.enqueue).toHaveBeenCalledWith(storeId, 'order.updated', expect.anything());
     });
 
     it('should route status=cancelled through cancelSale (restoring stock)', async () => {
@@ -226,6 +244,7 @@ describe('SaleService', () => {
 
       expect(mockQueries.cancelSale).toHaveBeenCalledWith(saleId, storeId, [{ product_id: 'prod-1', quantity: 2 }]);
       expect(result.status).toBe('cancelled');
+      expect(mockDispatcher.enqueue).toHaveBeenCalledWith(storeId, 'order.cancelled', expect.objectContaining({ id: saleId }));
     });
 
     it('should refuse to cancel twice', async () => {

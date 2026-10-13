@@ -4,6 +4,7 @@ import { SaleModel } from '../database/models/SaleModel.js';
 import { SaleItemModel } from '../database/models/SaleItemModel.js';
 import { SaleIntegrationModel } from '../database/models/SaleIntegrationModel.js';
 import { SaleQueries } from '../database/queries/SaleQueries.js';
+import { WebhookDispatcher, WebhookEventType } from './WebhookDispatcher.js';
 import {
   CreateSaleRequest,
   UpdateSaleRequest,
@@ -19,6 +20,7 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export class SaleService {
   private queries?: SaleQueries;
+  private dispatcher = new WebhookDispatcher();
 
   private async ensureQueries(): Promise<SaleQueries> {
     if (!this.queries) {
@@ -113,7 +115,9 @@ export class SaleService {
     );
 
     const full = await q.findSaleById(saleId, storeId);
-    return this.mapSale(full!);
+    const response = this.mapSale(full!);
+    await this.emit(storeId, 'order.created', response);
+    return response;
   }
 
   async getSale(id: string, storeId: string): Promise<SaleResponse> {
@@ -161,7 +165,9 @@ export class SaleService {
     }
 
     const updated = await q.updateSale(id, storeId, updateData);
-    return this.mapSale(updated!);
+    const response = this.mapSale(updated!);
+    await this.emit(storeId, 'order.updated', response);
+    return response;
   }
 
   async cancelSale(id: string, storeId: string): Promise<SaleResponse> {
@@ -178,7 +184,18 @@ export class SaleService {
     );
 
     const updated = await q.findSaleById(id, storeId);
-    return this.mapSale(updated!);
+    const response = this.mapSale(updated!);
+    await this.emit(storeId, 'order.cancelled', response);
+    return response;
+  }
+
+  /** Queues webhook events; a failure here must never break the sale itself. */
+  private async emit(storeId: string, type: WebhookEventType, sale: SaleResponse): Promise<void> {
+    try {
+      await this.dispatcher.enqueue(storeId, type, sale);
+    } catch (err) {
+      console.error(`Failed to queue ${type} webhook for sale ${sale.id}:`, err);
+    }
   }
 
   private mapItem(i: SaleItemModel): SaleItemResponse {

@@ -19,7 +19,7 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 
 ---
 
-## 🗄️ Tabelas (migrations 001–017)
+## 🗄️ Tabelas (migrations 001–018)
 
 | Migration | Tabela | Observação |
 |-----------|--------|------------|
@@ -38,10 +38,11 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 | 015 | `integrations`, `webhooks`, `webhook_events` | iFood/aiQFome/custom; `UNIQUE (store_id, type)`; log de eventos com retry |
 | 016 | `sales`, `sale_items` | Venda + itens com snapshot de nome e preço |
 | 017 | `sale_integrations` | Origem da venda (`ifood`, `aiqfome`, `manual`, `app`, `web`), `UNIQUE (sale_id)` |
+| 018 | views `vw_*` | Relatórios: `vw_sales_by_status`, `vw_top_products`, `vw_integration_status`, `vw_webhook_errors`, `vw_supplies_stock` |
 
-As migrations 001–017 estão aplicadas no banco do Docker. Models, services, controllers, rotas e testes existem para todas as tabelas, inclusive vendas (`/api/sales`) e integrações/webhooks (`/api/integrations`).
+As migrations 001–018 estão aplicadas no banco do Docker. Models, services, controllers, rotas e testes existem para todas as tabelas, inclusive vendas (`/api/sales`) e integrações/webhooks (`/api/integrations`).
 
-Padrões das migrations: ids `UUID`, status/tipos como `VARCHAR` + `CHECK` (sem `CREATE TYPE ENUM`), `IF NOT EXISTS` e constraints nomeadas. As views de relatório (`vw_*`) não foram criadas.
+Padrões das migrations: ids `UUID`, status/tipos como `VARCHAR` + `CHECK` (sem `CREATE TYPE ENUM`), `IF NOT EXISTS` e constraints nomeadas.
 
 ---
 
@@ -62,6 +63,7 @@ WHERE id = $2 AND store_id = $3 AND amount >= $1;
 
 - **Criar compra** → soma `purchase_items.quantity` em `supplies.amount` (sem status de entrega: a compra entra no estoque ao ser criada).
 - **Apagar compra** → subtrai as quantidades, com piso em 0.
+- Compra, itens e ajuste de estoque (criar ou apagar) rodam em **uma transação**. O fornecedor e todos os insumos precisam pertencer à loja (senão `Supplier not found` / `Supply not found`); quantidade deve ser > 0 e preço ≥ 0.
 - **Editar compra** (`updatePurchase`) não altera itens, portanto não mexe no estoque.
 - Ajuste manual: `PUT /supplies/:id` com `amount`.
 - Implementação: `PurchaseQueries.adjustSupplyStock` (filtra por `store_id`).
@@ -77,17 +79,30 @@ WHERE id = $2 AND store_id = $3 AND amount >= $1;
 
 ### Integrações e webhooks
 
-- `/api/integrations` (CRUD), `/api/integrations/:id/webhooks` (CRUD) e `/api/integrations/:id/events` (log, somente leitura).
+- `/api/integrations` (CRUD), `/api/integrations/:id/webhooks` (CRUD), `POST .../webhooks/:webhookId/test` (ping `webhook.test`), `GET .../:id/events` (log) e `POST .../:id/events/:eventId/retry` (recoloca na fila um evento `failed`/`skipped`).
 - `api_key`, `api_secret` e `webhook_token` da integração nunca são devolvidos (a API devolve `has_api_key` / `has_api_secret`). O `type` da integração não pode ser alterado.
-- O envio dos webhooks e o retry (preencher `webhook_events`) ainda não foram implementados: hoje a tabela só é lida.
+- **Criptografia em repouso:** `api_key` e `api_secret` são gravados com AES-256-GCM (`enc:v1:...`, transformer em `IntegrationModel`) usando `INTEGRATION_ENCRYPTION_KEY` (obrigatória em produção; em dev há uma chave insegura de fallback, com aviso). Valores antigos em texto puro continuam legíveis. Limite de 250 caracteres por segredo. **Perder a chave torna os segredos ilegíveis: guarde um backup.** O `webhook_token` (usado para assinar as entregas) continua em texto puro.
+- **Permissões:** `/api/integrations/*` só para `admin` e `manager`; cancelar venda (`POST /:id/cancel` ou `PUT` com `status: cancelled`) e apagar compra só para `admin` e `manager`. `staff` continua podendo criar e consultar vendas.
+- **Limpeza:** o worker apaga, a cada 6 h, eventos `delivered`/`skipped` com mais de `WEBHOOK_RETENTION_DAYS` (30) e `failed` com mais de `WEBHOOK_FAILED_RETENTION_DAYS` (90).
+- **Eventos:** `order.created`, `order.updated`, `order.cancelled` (disparados por `SaleService` para os webhooks ativos da loja) e `webhook.test`. Só esses tipos são aceitos em `webhooks.event_type`.
+- **Fila:** o evento é gravado em `webhook_events` (`pending`) e entregue por `WebhookWorker` (`WebhookDispatcher.processDue`), a cada `WEBHOOK_WORKER_INTERVAL_MS` (padrão 30000; `0` desativa). Falha ao enfileirar nunca derruba a venda.
+- **Entrega:** `POST` JSON com `X-Webhook-Id`, `X-Webhook-Event`, `X-Webhook-Token` e `X-Webhook-Signature: sha256=<HMAC-SHA256 do corpo com o webhook_token>`. Timeout 10s, sem seguir redirects; 2xx = `delivered`.
+- **Retry:** falha volta para `pending` com `next_retry` em 5 min, 15 min, 1 h, 4 h e 12 h (depois repete 12 h). Ao atingir `max_retries` tentativas (1–10, padrão 5) vira `failed`. Webhook/integração inativos ou removidos viram `skipped`. Evento preso em `sent` por mais de 5 min é retomado.
+- **Concorrência:** os eventos são reservados com `FOR UPDATE SKIP LOCKED`, então mais de uma instância pode rodar o worker.
+- **Segurança:** `endpoint_url` só aceita http(s) e bloqueia hosts privados/locais (localhost, 10.x, 172.16–31.x, 192.168.x, 169.254.x, `.internal`, IPv6 local); em desenvolvimento, `WEBHOOK_ALLOW_PRIVATE=true` libera. Hostnames não são resolvidos (DNS rebinding não coberto).
+- **Horários:** colunas `timestamp` sem fuso; `next_retry` é sempre calculado pelo banco (`NOW()`), nunca pelo app, para não depender do fuso do servidor.
+- Ainda não há conectores iFood/aiQFome: a integração só guarda configuração e recebe/dispara webhooks.
+
+### Testes
+
+- `npm test`: unitários (com mock), não precisam de banco.
+- `npm run test:integration`: roda contra o Postgres real (docker `db`, migrations aplicadas; usa `DB_HOST=localhost`). Cobre venda/estoque/cancelamento, compras e transação, criptografia, entrega/retry/limpeza de webhooks e as views. Cada teste cria uma loja temporária e a remove no final.
 
 ### Limitações conhecidas
 
 - Sem histórico de movimentações: só o saldo atual (e `audit_logs` para ações gerais).
 - Sem preço médio ponderado nem custo por produto.
 - `purchase_items.batch_number`, `manufacturing_date` e `expiry_date` são só informativos; não há alerta nem baixa automática por validade.
-- Criar compra, itens e ajuste de estoque não rodam em transação única.
-- O `supply_id` dos itens de compra não é validado contra a loja (o ajuste de estoque ignora insumos de outra loja).
 
 ---
 
@@ -108,7 +123,6 @@ Tabela genérica com `type` (shop, product, supplier, banner, category, promotio
 
 ## 🚀 Próximos Passos
 
-1. Dispatcher de webhooks com retry (gravar e reenviar `webhook_events`) e conectores iFood/aiQFome.
-2. Validar `supply_id` dos itens de compra contra a loja.
-3. Views de relatório (`vw_*`), se necessário.
-4. Criptografar `api_key` / `api_secret` em repouso.
+1. Conectores iFood/aiQFome (receber pedidos e sincronizar status via `sale_integrations.sync_status`): dependem da documentação oficial e de credenciais de homologação de cada plataforma.
+2. Endpoints que leem as views `vw_*` (relatórios na API).
+3. Rotação da `INTEGRATION_ENCRYPTION_KEY` (hoje só uma chave).

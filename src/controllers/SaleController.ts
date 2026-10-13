@@ -76,6 +76,18 @@ export class SaleController {
       const storeId = (req as any).user.store_id;
       const { id } = req.params;
       const data: UpdateSaleRequest = req.body;
+
+      // Cancelling (which restores stock) is restricted, same as POST /:id/cancel
+      if (data.status === 'cancelled' && !['admin', 'manager'].includes((req as any).user.role)) {
+        res.status(403).json({
+          success: false,
+          error: 'Insufficient permissions',
+          status_code: 403,
+          timestamp: new Date(),
+        });
+        return;
+      }
+
       const sale = await this.saleService.updateSale(id, storeId, data);
       res.json({ success: true, data: sale, message: 'Sale updated successfully' });
     } catch (error) {

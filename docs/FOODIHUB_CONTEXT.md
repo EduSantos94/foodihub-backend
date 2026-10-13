@@ -19,7 +19,7 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 
 ---
 
-## 🗄️ Tabelas (migrations 001–014)
+## 🗄️ Tabelas (migrations 001–017)
 
 | Migration | Tabela | Observação |
 |-----------|--------|------------|
@@ -35,8 +35,13 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 | 012 | `supplies` | Insumos: `type`, `unit_measure` |
 | 013 | `purchases`, `purchase_items` | Compras com lote e validade por item |
 | 014 | — | `supplies.amount` + `CHECK (amount >= 0)` em `supplies` e `products` |
+| 015 | `integrations`, `webhooks`, `webhook_events` | iFood/aiQFome/custom; `UNIQUE (store_id, type)`; log de eventos com retry |
+| 016 | `sales`, `sale_items` | Venda + itens com snapshot de nome e preço |
+| 017 | `sale_integrations` | Origem da venda (`ifood`, `aiqfome`, `manual`, `app`, `web`), `UNIQUE (sale_id)` |
 
-Ainda não existem: vendas (`sales`, `sale_items`) e integrações (iFood/aiQFome, webhooks).
+As migrations 001–017 estão aplicadas no banco do Docker. Models, services, controllers, rotas e testes existem para todas as tabelas, inclusive vendas (`/api/sales`) e integrações/webhooks (`/api/integrations`).
+
+Padrões das migrations: ids `UUID`, status/tipos como `VARCHAR` + `CHECK` (sem `CREATE TYPE ENUM`), `IF NOT EXISTS` e constraints nomeadas. As views de relatório (`vw_*`) não foram criadas.
 
 ---
 
@@ -60,6 +65,21 @@ WHERE id = $2 AND store_id = $3 AND amount >= $1;
 - **Editar compra** (`updatePurchase`) não altera itens, portanto não mexe no estoque.
 - Ajuste manual: `PUT /supplies/:id` com `amount`.
 - Implementação: `PurchaseQueries.adjustSupplyStock` (filtra por `store_id`).
+
+### Vendas (`sales` / `sale_items`)
+
+- `sale_items` guarda snapshot de `product_name` e `unit_price`; `quantity > 0`.
+- `POST /api/sales`: o preço vem do produto (snapshot em `sale_items`), nunca do cliente. Venda, itens, desconto de `products.amount` e `sale_integrations` rodam numa transação; sem saldo, a venda inteira é recusada (rollback).
+- `POST /api/sales/:id/cancel` (ou `PUT` com `status: cancelled`) devolve as quantidades ao estoque. Venda cancelada não pode mais ser alterada; venda `delivered` não pode ser cancelada.
+- Não há DELETE de venda: cancelar é o caminho.
+- Fluxo de `sales.status`: `pending → preparing → ready → delivered` (ou `cancelled`). Pagamento em `payment_status` (`pending | paid | cancelled`).
+- `sale_integrations` só existe para vendas vindas de plataformas externas; venda manual não precisa de registro lá (a coluna `integration_id` é obrigatória).
+
+### Integrações e webhooks
+
+- `/api/integrations` (CRUD), `/api/integrations/:id/webhooks` (CRUD) e `/api/integrations/:id/events` (log, somente leitura).
+- `api_key`, `api_secret` e `webhook_token` da integração nunca são devolvidos (a API devolve `has_api_key` / `has_api_secret`). O `type` da integração não pode ser alterado.
+- O envio dos webhooks e o retry (preencher `webhook_events`) ainda não foram implementados: hoje a tabela só é lida.
 
 ### Limitações conhecidas
 
@@ -88,7 +108,7 @@ Tabela genérica com `type` (shop, product, supplier, banner, category, promotio
 
 ## 🚀 Próximos Passos
 
-1. Aplicar a migration 014 no banco.
-2. Implementar vendas (`sales`, `sale_items`) descontando `products.amount` com o `UPDATE` atômico acima.
-3. Validar `supply_id` dos itens de compra contra a loja.
-4. Integrações (iFood/aiQFome) e webhooks, se necessário.
+1. Dispatcher de webhooks com retry (gravar e reenviar `webhook_events`) e conectores iFood/aiQFome.
+2. Validar `supply_id` dos itens de compra contra a loja.
+3. Views de relatório (`vw_*`), se necessário.
+4. Criptografar `api_key` / `api_secret` em repouso.

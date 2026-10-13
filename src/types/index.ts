@@ -451,3 +451,179 @@ export interface PurchaseResponse {
   created_at: Date;
   updated_at: Date;
 }
+
+// ==================== Sale ====================
+export type SaleStatus = 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
+export type SalePaymentMethod = 'cash' | 'credit_card' | 'debit_card' | 'pix' | 'bank_transfer';
+export type SalePaymentStatus = 'pending' | 'paid' | 'cancelled';
+export type DeliveryType = 'takeout' | 'delivery' | 'dine_in';
+export type SaleOrigin = 'ifood' | 'aiqfome' | 'manual' | 'app' | 'web';
+export type SyncStatus = 'pending' | 'synced' | 'error' | 'cancelled';
+
+export interface CreateSaleItemRequest {
+  product_id: string;
+  product_size_id?: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface CreateSaleIntegrationRequest {
+  integration_id: string;
+  origin: SaleOrigin;
+  external_id?: string;
+  external_order_number?: string;
+  origin_data?: Record<string, unknown>;
+}
+
+export interface CreateSaleRequest {
+  customer_id?: string;
+  sale_number?: string;
+  delivery_type?: DeliveryType;
+  delivery_address?: string;
+  discount?: number;
+  tax?: number;
+  payment_method?: SalePaymentMethod;
+  notes?: string;
+  items: CreateSaleItemRequest[];
+  integration?: CreateSaleIntegrationRequest;
+}
+
+export interface UpdateSaleRequest {
+  status?: SaleStatus;
+  delivery_address?: string;
+  payment_method?: SalePaymentMethod;
+  payment_status?: SalePaymentStatus;
+  notes?: string;
+}
+
+export interface SaleItemResponse {
+  id: string;
+  sale_id: string;
+  product_id: string;
+  product_size_id?: string;
+  product_name?: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  notes?: string;
+}
+
+export interface SaleIntegrationResponse {
+  id: string;
+  sale_id: string;
+  integration_id: string;
+  origin: SaleOrigin;
+  external_id?: string;
+  external_order_number?: string;
+  origin_data?: Record<string, unknown>;
+  sync_status: SyncStatus;
+  last_sync?: Date;
+}
+
+export interface SaleResponse {
+  id: string;
+  store_id: string;
+  customer_id?: string;
+  sale_number?: string;
+  sale_date: Date;
+  delivery_type: DeliveryType;
+  delivery_address?: string;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total_amount: number;
+  status: SaleStatus;
+  payment_method: SalePaymentMethod;
+  payment_status: SalePaymentStatus;
+  paid_at?: Date;
+  notes?: string;
+  created_by?: string;
+  items?: SaleItemResponse[];
+  integration?: SaleIntegrationResponse;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// ==================== Integration ====================
+export type IntegrationType = 'ifood' | 'aiqfome' | 'custom';
+export type IntegrationStatus = 'active' | 'inactive' | 'error';
+
+export interface CreateIntegrationRequest {
+  name: string;
+  type: IntegrationType;
+  api_key?: string;
+  api_secret?: string;
+  webhook_url?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface UpdateIntegrationRequest {
+  name?: string;
+  api_key?: string;
+  api_secret?: string;
+  webhook_url?: string;
+  status?: IntegrationStatus;
+  config?: Record<string, unknown>;
+  active?: boolean;
+}
+
+// Secrets (api_key, api_secret, webhook_token) are never returned
+export interface IntegrationResponse {
+  id: string;
+  store_id: string;
+  name: string;
+  type: IntegrationType;
+  has_api_key: boolean;
+  has_api_secret: boolean;
+  webhook_url?: string;
+  status: IntegrationStatus;
+  last_sync?: Date;
+  last_error?: string;
+  config?: Record<string, unknown>;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// ==================== Webhook ====================
+export type WebhookEventStatus = 'pending' | 'sent' | 'delivered' | 'failed' | 'skipped';
+
+export interface CreateWebhookRequest {
+  event_type: string;
+  endpoint_url: string;
+  max_retries?: number;
+}
+
+export interface UpdateWebhookRequest {
+  event_type?: string;
+  endpoint_url?: string;
+  max_retries?: number;
+  active?: boolean;
+}
+
+export interface WebhookResponse {
+  id: string;
+  integration_id: string;
+  event_type: string;
+  endpoint_url: string;
+  webhook_token: string;
+  active: boolean;
+  retry_count: number;
+  max_retries: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface WebhookEventResponse {
+  id: string;
+  webhook_id: string;
+  event_type: string;
+  payload: string;
+  response_status?: number;
+  response_body?: string;
+  status: WebhookEventStatus;
+  attempt_count: number;
+  last_attempt?: Date;
+  next_retry?: Date;
+  created_at: Date;
+}

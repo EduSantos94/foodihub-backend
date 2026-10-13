@@ -31,6 +31,9 @@ export class SupplyModel {
   @Column('varchar', { length: 20 })
   unit_measure: string;
 
+  @Column('numeric', { precision: 15, scale: 4, default: 0 })
+  amount: number;
+
   @Column('text', { nullable: true })
   description?: string;
 

@@ -65,6 +65,7 @@ export class PurchaseService {
     }));
 
     await q.createItems(itemsData);
+    await q.adjustSupplyStock(storeId, itemsData, 1);
 
     const full = await q.findPurchaseById(purchase.id, storeId);
     return this.mapPurchase(full!);
@@ -119,6 +120,11 @@ export class PurchaseService {
     const existing = await q.findPurchaseById(id, storeId);
     if (!existing) throw new Error('Purchase not found');
     await q.deletePurchase(id, storeId);
+    await q.adjustSupplyStock(
+      storeId,
+      (existing.items ?? []).map((i) => ({ supply_id: i.supply_id, quantity: Number(i.quantity) })),
+      -1
+    );
   }
 
   private mapItem(i: PurchaseItemModel): PurchaseItemResponse {

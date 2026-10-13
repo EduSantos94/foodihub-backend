@@ -46,6 +46,7 @@ describe('PurchaseService', () => {
       findAllByStore: vi.fn(),
       updatePurchase: vi.fn(),
       deletePurchase: vi.fn(),
+      adjustSupplyStock: vi.fn(),
     };
   });
 
@@ -64,6 +65,11 @@ describe('PurchaseService', () => {
       });
 
       expect(result.total_amount).toBe(55);
+      expect(mockQueries.adjustSupplyStock).toHaveBeenCalledWith(
+        mockStoreId,
+        [expect.objectContaining({ supply_id: 'supply-1', quantity: 10 })],
+        1
+      );
       expect(result.payment_status).toBe('pending');
       expect(result.items).toHaveLength(1);
       expect(mockQueries.createPurchase).toHaveBeenCalledWith(
@@ -193,6 +199,11 @@ describe('PurchaseService', () => {
       await service.deletePurchase(mockPurchaseId, mockStoreId);
 
       expect(mockQueries.deletePurchase).toHaveBeenCalledWith(mockPurchaseId, mockStoreId);
+      expect(mockQueries.adjustSupplyStock).toHaveBeenCalledWith(
+        mockStoreId,
+        [{ supply_id: 'supply-1', quantity: 10 }],
+        -1
+      );
     });
 
     it('should throw if purchase not found on delete', async () => {

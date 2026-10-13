@@ -33,6 +33,7 @@ export class SupplyService {
       name: data.name,
       type: data.type ?? 'ingredient',
       unit_measure: data.unit_measure,
+      amount: data.amount ?? 0,
       description: data.description,
       active: true,
     });
@@ -90,6 +91,7 @@ export class SupplyService {
       name: s.name,
       type: s.type,
       unit_measure: s.unit_measure,
+      amount: Number(s.amount ?? 0),
       description: s.description,
       active: s.active,
       created_at: s.created_at,

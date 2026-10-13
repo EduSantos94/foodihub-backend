@@ -356,6 +356,7 @@ export interface CreateSupplyRequest {
   name: string;
   type?: SupplyType;
   unit_measure: string;
+  amount?: number;
   description?: string;
 }
 
@@ -363,6 +364,7 @@ export interface UpdateSupplyRequest {
   name?: string;
   type?: SupplyType;
   unit_measure?: string;
+  amount?: number;
   description?: string;
   active?: boolean;
 }
@@ -373,6 +375,7 @@ export interface SupplyResponse {
   name: string;
   type: SupplyType;
   unit_measure: string;
+  amount: number;
   description?: string;
   active: boolean;
   created_at: Date;

@@ -49,6 +49,21 @@ export class PurchaseQueries {
     return (result.affected || 0) > 0;
   }
 
+  // Adds (or removes, with a negative quantity) purchased quantities to supplies.amount.
+  // Scoped by store_id so a purchase can never touch another tenant's supplies.
+  async adjustSupplyStock(
+    storeId: string,
+    items: { supply_id: string; quantity: number }[],
+    direction: 1 | -1
+  ): Promise<void> {
+    for (const item of items) {
+      await this.itemRepository.manager.query(
+        'UPDATE supplies SET amount = GREATEST(amount + $1, 0), updated_at = NOW() WHERE id = $2 AND store_id = $3',
+        [direction * item.quantity, item.supply_id, storeId]
+      );
+    }
+  }
+
   async deleteItemsByPurchase(purchaseId: string): Promise<void> {
     await this.itemRepository.delete({ purchase_id: purchaseId });
   }

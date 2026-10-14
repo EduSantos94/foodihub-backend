@@ -11,6 +11,9 @@ import {
   PaginationQuery,
 } from '../types/index.js';
 
+export const MIN_PASSWORD_LENGTH = 8;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export class UserService {
   private userRepository?: Repository<UserModel>;
 
@@ -26,6 +29,16 @@ export class UserService {
     data: CreateUserRequest
   ): Promise<UserResponse> {
     await this.ensureRepository();
+
+    if (!data.email || !EMAIL_RE.test(data.email)) throw new Error('A valid email is required');
+    if (!data.password || data.password.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(`Password must have at least ${MIN_PASSWORD_LENGTH} characters`);
+    }
+    if (!data.first_name) throw new Error('first_name is required');
+    if (data.role !== undefined && !Object.values(UserRole).includes(data.role as UserRole)) {
+      throw new Error(`role must be one of: ${Object.values(UserRole).join(', ')}`);
+    }
+
     const existingUser = await this.userRepository!.findOne({
       where: { email: data.email },
     });
@@ -51,10 +64,11 @@ export class UserService {
     return this.mapToResponse(savedUser);
   }
 
-  async getUserById(id: string): Promise<UserResponse> {
+  /** Only finds users of the given store: another tenant's user is "not found". */
+  async getUserById(id: string, storeId: string): Promise<UserResponse> {
     await this.ensureRepository();
     const user = await this.userRepository!.findOne({
-      where: { id },
+      where: { id, store_id: storeId },
     });
 
     if (!user) {
@@ -73,11 +87,12 @@ export class UserService {
 
   async updateUser(
     id: string,
+    storeId: string,
     data: UpdateUserRequest
   ): Promise<UserResponse> {
     await this.ensureRepository();
     const user = await this.userRepository!.findOne({
-      where: { id },
+      where: { id, store_id: storeId },
     });
 
     if (!user) {
@@ -101,6 +116,10 @@ export class UserService {
     data: ChangePasswordRequest
   ): Promise<void> {
     await this.ensureRepository();
+    if (!data.new_password || data.new_password.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(`Password must have at least ${MIN_PASSWORD_LENGTH} characters`);
+    }
+
     const user = await this.userRepository!.findOne({
       where: { id },
     });
@@ -152,10 +171,10 @@ export class UserService {
     };
   }
 
-  async deactivateUser(id: string): Promise<UserResponse> {
+  async deactivateUser(id: string, storeId: string): Promise<UserResponse> {
     await this.ensureRepository();
     const user = await this.userRepository!.findOne({
-      where: { id },
+      where: { id, store_id: storeId },
     });
 
     if (!user) {
@@ -187,6 +206,7 @@ export class UserService {
       phone: user.phone,
       role: user.role,
       active: user.active,
+      is_platform_admin: user.is_platform_admin === true,
       created_at: user.created_at,
       updated_at: user.updated_at,
     };

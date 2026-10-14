@@ -82,34 +82,6 @@ export class StoreService {
     return this.mapToResponse(updatedStore);
   }
 
-  async getAllStores(
-    query: PaginationQuery
-  ): Promise<PaginatedResponse<StoreResponse>> {
-    await this.ensureRepositories();
-    const page = query.page || 1;
-    const limit = query.limit || 10;
-    const skip = (page - 1) * limit;
-
-    const [stores, total] = await this.storeRepository!.findAndCount({
-      where: { deleted_at: null },
-      skip,
-      take: limit,
-      order: {
-        created_at: query.order || 'DESC',
-      },
-    });
-
-    return {
-      data: stores.map((store) => this.mapToResponse(store)),
-      pagination: {
-        page,
-        limit,
-        total,
-        total_pages: Math.ceil(total / limit),
-      },
-    };
-  }
-
   async deactivateStore(id: string): Promise<StoreResponse> {
     await this.ensureRepositories();
     const store = await this.storeRepository!.findOne({
@@ -139,6 +111,12 @@ export class StoreService {
 
     store.deleted_at = new Date();
     await this.storeRepository!.save(store);
+  }
+
+  /** Removes the row for good. Only meant to undo a registration that failed halfway. */
+  async hardDeleteStore(id: string): Promise<void> {
+    await this.ensureRepositories();
+    await this.storeRepository!.delete({ id });
   }
 
   async getUserCountByStore(storeId: string): Promise<number> {

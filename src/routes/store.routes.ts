@@ -1,49 +1,47 @@
 import { Router } from 'express';
 import { StoreController } from '../controllers/StoreController.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, authorizeRole, requireOwnStore } from '../middleware/auth.js';
 
 const router = Router();
 const storeController = new StoreController();
 
-/**
- * POST /stores
- * Criar nova loja
- */
-router.post('/', (req, res) => storeController.createStore(req, res));
+// Every store route requires login and only ever exposes the user's own store.
+// New stores are created through POST /auth/register (store + first admin together).
+router.use(authenticateToken);
 
 /**
  * GET /stores
- * Listar todas as lojas (com paginação)
+ * Returns the user's own store (same paginated shape as before, with a single item)
  */
-router.get('/', (req, res) => storeController.getAllStores(req, res));
+router.get('/', (req, res) => storeController.getMyStore(req, res));
 
 /**
  * GET /stores/:id
- * Obter dados de uma loja específica
+ * Obter dados da própria loja
  */
-router.get('/:id', (req, res) => storeController.getStore(req, res));
+router.get('/:id', requireOwnStore, (req, res) => storeController.getStore(req, res));
 
 /**
  * PUT /stores/:id
- * Atualizar dados de uma loja (requer autenticação)
+ * Atualizar a própria loja (admin)
  */
-router.put('/:id', authenticateToken, (req, res) =>
+router.put('/:id', requireOwnStore, authorizeRole('admin'), (req, res) =>
   storeController.updateStore(req, res)
 );
 
 /**
  * PATCH /stores/:id/deactivate
- * Desativar uma loja (requer autenticação)
+ * Desativar a própria loja (admin)
  */
-router.patch('/:id/deactivate', authenticateToken, (req, res) =>
+router.patch('/:id/deactivate', requireOwnStore, authorizeRole('admin'), (req, res) =>
   storeController.deactivateStore(req, res)
 );
 
 /**
  * DELETE /stores/:id
- * Deletar (soft delete) uma loja (requer autenticação)
+ * Deletar (soft delete) a própria loja (admin)
  */
-router.delete('/:id', authenticateToken, (req, res) =>
+router.delete('/:id', requireOwnStore, authorizeRole('admin'), (req, res) =>
   storeController.deleteStore(req, res)
 );
 

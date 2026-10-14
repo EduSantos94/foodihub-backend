@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { pick } from '../utils/pick.js';
 import { CustomerModel } from '../database/models/CustomerModel.js';
 import { CustomerQueries } from '../database/queries/CustomerQueries.js';
 import {
@@ -91,7 +92,7 @@ export class CustomerService {
     }
 
     const updated = await q.updateCustomer(id, storeId, {
-      ...data,
+      ...pick(data, ['first_name', 'last_name', 'email', 'phone', 'cpf', 'delivery_address', 'city', 'state', 'zip_code', 'notes', 'active']),
       updated_at: new Date(),
     });
     return this.mapCustomer(updated!);

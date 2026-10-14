@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "migrate": "tsx src/database/migrate.ts",
     "migrate:seed": "tsx src/database/migrate.ts seed",
+    "platform-admin": "tsx src/database/platform-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "RUN_INTEGRATION=1 DB_HOST=${DB_HOST:-localhost} vitest run --config vitest.integration.config.ts"

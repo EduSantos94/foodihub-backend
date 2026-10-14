@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { UserService } from '../services/UserService.js';
+import { invalidateAuthCache } from '../middleware/auth.js';
 import {
   CreateUserRequest,
   UpdateUserRequest,
@@ -7,6 +8,13 @@ import {
   PaginationQuery,
 } from '../types/index.js';
 
+/**
+ * Users are always handled inside the logged user's own store:
+ *  - admin: creates users, edits and deactivates anyone in the store (not themselves)
+ *  - manager: lists the store's users
+ *  - everyone: sees and edits their own profile and changes their own password
+ * A user id from another store is always answered with 404.
+ */
 export class UserController {
   private userService: UserService;
 
@@ -16,18 +24,17 @@ export class UserController {
 
   async createUser(req: Request, res: Response): Promise<void> {
     try {
-      const storeId = (req as any).user?.store_id;
-      if (!storeId) {
-        res.status(401).json({
-          success: false,
-          error: 'Unauthorized',
-          status_code: 401,
-        });
-        return;
-      }
-
+      const { store_id: storeId } = (req as any).user;
       const data: CreateUserRequest = req.body;
-      const user = await this.userService.createUser(storeId, data);
+      // store_id always comes from the token, never from the body
+      const user = await this.userService.createUser(storeId, {
+        email: data.email,
+        password: data.password,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        role: data.role,
+      });
       res.status(201).json({
         success: true,
         data: user,
@@ -40,12 +47,17 @@ export class UserController {
 
   async getUser(req: Request, res: Response): Promise<void> {
     try {
+      const { store_id: storeId, id: me, role } = (req as any).user;
       const { id } = req.params;
-      const user = await this.userService.getUserById(id);
-      res.json({
-        success: true,
-        data: user,
-      });
+
+      // staff only sees themselves; admin/manager see the whole store
+      if (id !== me && !['admin', 'manager'].includes(role)) {
+        this.notFound(res);
+        return;
+      }
+
+      const user = await this.userService.getUserById(id, storeId);
+      res.json({ success: true, data: user });
     } catch (error) {
       this.handleError(error, res);
     }
@@ -53,9 +65,31 @@ export class UserController {
 
   async updateUser(req: Request, res: Response): Promise<void> {
     try {
+      const { store_id: storeId, id: me, role } = (req as any).user;
       const { id } = req.params;
-      const data: UpdateUserRequest = req.body;
-      const user = await this.userService.updateUser(id, data);
+      const body: UpdateUserRequest = req.body ?? {};
+
+      if (id !== me && role !== 'admin') {
+        this.notFound(res);
+        return;
+      }
+
+      // Only these fields are editable. `active` is an admin decision about someone else.
+      const data: UpdateUserRequest = {
+        first_name: body.first_name,
+        last_name: body.last_name,
+        phone: body.phone,
+      };
+      if (body.active !== undefined) {
+        if (role !== 'admin' || id === me) {
+          res.status(403).json({ success: false, error: 'Insufficient permissions', status_code: 403, timestamp: new Date() });
+          return;
+        }
+        data.active = body.active;
+      }
+
+      const user = await this.userService.updateUser(id, storeId, data);
+      if (data.active === false) invalidateAuthCache(id);
       res.json({
         success: true,
         data: user,
@@ -68,9 +102,20 @@ export class UserController {
 
   async changePassword(req: Request, res: Response): Promise<void> {
     try {
+      const { id: me } = (req as any).user;
       const { id } = req.params;
-      const data: ChangePasswordRequest = req.body;
-      await this.userService.changePassword(id, data);
+
+      // Passwords can only be changed by their owner
+      if (id !== me) {
+        this.notFound(res);
+        return;
+      }
+
+      const body: ChangePasswordRequest = req.body ?? ({} as ChangePasswordRequest);
+      await this.userService.changePassword(id, {
+        current_password: body.current_password,
+        new_password: body.new_password,
+      });
       res.json({
         success: true,
         message: 'Password changed successfully',
@@ -82,15 +127,7 @@ export class UserController {
 
   async getUsersByStore(req: Request, res: Response): Promise<void> {
     try {
-      const storeId = (req as any).user?.store_id;
-      if (!storeId) {
-        res.status(401).json({
-          success: false,
-          error: 'Unauthorized',
-          status_code: 401,
-        });
-        return;
-      }
+      const { store_id: storeId } = (req as any).user;
 
       const query: PaginationQuery = {
         page: req.query.page ? parseInt(req.query.page as string) : 1,
@@ -110,8 +147,16 @@ export class UserController {
 
   async deactivateUser(req: Request, res: Response): Promise<void> {
     try {
+      const { store_id: storeId, id: me } = (req as any).user;
       const { id } = req.params;
-      const user = await this.userService.deactivateUser(id);
+
+      if (id === me) {
+        res.status(400).json({ success: false, error: 'You cannot deactivate your own account', status_code: 400, timestamp: new Date() });
+        return;
+      }
+
+      const user = await this.userService.deactivateUser(id, storeId);
+      invalidateAuthCache(id);
       res.json({
         success: true,
         data: user,
@@ -120,6 +165,10 @@ export class UserController {
     } catch (error) {
       this.handleError(error, res);
     }
+  }
+
+  private notFound(res: Response): void {
+    res.status(404).json({ success: false, error: 'User not found', status_code: 404, timestamp: new Date() });
   }
 
   private handleError(error: any, res: Response): void {

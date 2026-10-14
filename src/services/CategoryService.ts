@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { pick } from '../utils/pick.js';
 import { CategoryModel } from '../database/models/CategoryModel.js';
 import { CategoryQueries } from '../database/queries/CategoryQueries.js';
 import {
@@ -70,7 +71,7 @@ export class CategoryService {
     }
 
     const updated = await q.updateCategory(id, {
-      ...data,
+      ...pick(data, ['name', 'description', 'active']),
       updated_at: new Date(),
     });
     return this.mapCategory(updated!);

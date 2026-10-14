@@ -49,6 +49,10 @@ export class UserModel {
   @Column('boolean', { default: true })
   active: boolean;
 
+  // Never settable through the API; see scripts/platform-admin
+  @Column('boolean', { default: false })
+  is_platform_admin: boolean;
+
   @Column('timestamp', { nullable: true })
   last_login?: Date;
 

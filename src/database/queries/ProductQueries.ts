@@ -1,6 +1,7 @@
 import { Repository } from 'typeorm';
 import { ProductModel } from '../models/ProductModel.js';
 import { ProductSizeModel } from '../models/ProductSizeModel.js';
+import { CategoryModel } from '../models/CategoryModel.js';
 
 export class ProductQueries {
   constructor(
@@ -9,6 +10,10 @@ export class ProductQueries {
   ) {}
 
   // ==================== Products ====================
+
+  async findCategoryById(id: string): Promise<CategoryModel | null> {
+    return this.productRepository.manager.getRepository(CategoryModel).findOne({ where: { id } });
+  }
 
   async createProduct(data: Partial<ProductModel>): Promise<ProductModel> {
     const product = this.productRepository.create(data);

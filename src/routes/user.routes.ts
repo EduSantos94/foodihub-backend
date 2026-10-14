@@ -1,54 +1,47 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/UserController.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, authorizeRole } from '../middleware/auth.js';
 
 const router = Router();
 const userController = new UserController();
 
+// Everything here requires login and is limited to the user's own store
+router.use(authenticateToken);
+
 /**
  * POST /users
- * Criar novo usuário (requer autenticação)
+ * Criar usuário na própria loja (admin)
  */
-router.post('/', authenticateToken, (req, res) =>
-  userController.createUser(req, res)
-);
+router.post('/', authorizeRole('admin'), (req, res) => userController.createUser(req, res));
 
 /**
  * GET /users
- * Listar usuários da loja autenticada (requer autenticação)
+ * Listar usuários da própria loja (admin, manager)
  */
-router.get('/', authenticateToken, (req, res) =>
-  userController.getUsersByStore(req, res)
-);
+router.get('/', authorizeRole('admin', 'manager'), (req, res) => userController.getUsersByStore(req, res));
 
 /**
  * GET /users/:id
- * Obter dados de um usuário específico
+ * Ver um usuário da própria loja (staff só vê a si mesmo)
  */
 router.get('/:id', (req, res) => userController.getUser(req, res));
 
 /**
  * PUT /users/:id
- * Atualizar dados de um usuário (requer autenticação)
+ * Atualizar o próprio perfil, ou qualquer usuário da loja (admin)
  */
-router.put('/:id', authenticateToken, (req, res) =>
-  userController.updateUser(req, res)
-);
+router.put('/:id', (req, res) => userController.updateUser(req, res));
 
 /**
  * POST /users/:id/change-password
- * Alterar senha do usuário (requer autenticação)
+ * Alterar a PRÓPRIA senha
  */
-router.post('/:id/change-password', authenticateToken, (req, res) =>
-  userController.changePassword(req, res)
-);
+router.post('/:id/change-password', (req, res) => userController.changePassword(req, res));
 
 /**
  * PATCH /users/:id/deactivate
- * Desativar um usuário (requer autenticação)
+ * Desativar outro usuário da loja (admin)
  */
-router.patch('/:id/deactivate', authenticateToken, (req, res) =>
-  userController.deactivateUser(req, res)
-);
+router.patch('/:id/deactivate', authorizeRole('admin'), (req, res) => userController.deactivateUser(req, res));
 
 export default router;

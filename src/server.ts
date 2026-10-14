@@ -22,6 +22,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3333;
 
+// Set TRUST_PROXY (e.g. 1) when running behind a reverse proxy, so rate limits see real client IPs
+if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
+
 // ==================== Middleware ====================
 app.use(cors());
 app.use(express.json());

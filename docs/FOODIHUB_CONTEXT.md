@@ -19,7 +19,7 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 
 ---
 
-## 🗄️ Tabelas (migrations 001–018)
+## 🗄️ Tabelas (migrations 001–019)
 
 | Migration | Tabela | Observação |
 |-----------|--------|------------|
@@ -38,9 +38,10 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 | 015 | `integrations`, `webhooks`, `webhook_events` | iFood/aiQFome/custom; `UNIQUE (store_id, type)`; log de eventos com retry |
 | 016 | `sales`, `sale_items` | Venda + itens com snapshot de nome e preço |
 | 017 | `sale_integrations` | Origem da venda (`ifood`, `aiqfome`, `manual`, `app`, `web`), `UNIQUE (sale_id)` |
+| 019 | — | `users.is_platform_admin` (administrador do sistema; só alterável pelo banco/CLI) |
 | 018 | views `vw_*` | Relatórios: `vw_sales_by_status`, `vw_top_products`, `vw_integration_status`, `vw_webhook_errors`, `vw_supplies_stock` |
 
-As migrations 001–018 estão aplicadas no banco do Docker. Models, services, controllers, rotas e testes existem para todas as tabelas, inclusive vendas (`/api/sales`) e integrações/webhooks (`/api/integrations`).
+As migrations 001–019 estão aplicadas no banco do Docker. Models, services, controllers, rotas e testes existem para todas as tabelas, inclusive vendas (`/api/sales`) e integrações/webhooks (`/api/integrations`).
 
 Padrões das migrations: ids `UUID`, status/tipos como `VARCHAR` + `CHECK` (sem `CREATE TYPE ENUM`), `IF NOT EXISTS` e constraints nomeadas.
 
@@ -111,6 +112,32 @@ WHERE id = $2 AND store_id = $3 AND amount >= $1;
 Tabela genérica com `type` (shop, product, supplier, banner, category, promotional, others) e `type_id` opcional apontando para o registro dono.
 
 ---
+
+## 🖥️ Frontend (`frontend/`, Expo Router: web/desktop primeiro)
+
+- Docker: `localhost:3000` (build estático servido pelo nginx; `app.json` usa `web.output: "single"`, ou seja, SPA, para não haver hidratação de páginas protegidas). Dev: `npm run web` (usa `EXPO_PUBLIC_API_URL`).
+- **Layout:** menu lateral no desktop (≥ 900 px) e barra superior com menu no celular. Tabelas viram cartões abaixo de 700 px.
+- **Telas prontas (Cadastros base):** Início (totais), Produtos (+ tamanhos), Categorias, Insumos, Fornecedores, Clientes. Listagem paginada, criar/editar em diálogo com validação, excluir com confirmação, erros da API mostrados no diálogo.
+- **Estrutura:** `lib/` (tema, cliente de API com token e logout automático em 401, formatação, tipos), `components/ui/` (Button, inputs, Dialog, DataTable, feedback), `components/ResourcePage.tsx` (CRUD genérico dirigido por configuração: cada tela é só colunas + campos), `components/Sidebar.tsx`.
+- **Sessão:** token e usuário ficam no `AsyncStorage`; ao recarregar a página o usuário continua logado.
+- **Permissões na tela:** Categorias só editáveis pelo administrador do sistema; as lojas veem a lista em modo leitura e escolhem a categoria no formulário de produto (só as ativas aparecem).
+- **Vendas (prontas):** `/pdv` (Nova venda: catálogo com busca, carrinho limitado ao estoque, cliente opcional, retirada/entrega/no local, pagamento, desconto, "pagamento já recebido") e `/sales` (lista com filtro de status, detalhes, avançar status, receber, cancelar só admin/manager). Tamanhos de produto ainda não são escolhidos no PDV.
+- Próximas fatias sugeridas: Compras e estoque, Integrações/webhooks, Usuários da loja.
+
+## 🔒 Isolamento entre lojas e permissões (backend)
+
+- **Lojas:** todas as rotas de `/api/stores` exigem login e só expõem a **própria** loja: `GET /` devolve só a loja do usuário, e `/:id` de outra loja responde **404** (não revela que existe). `PUT`, `PATCH /:id/deactivate` e `DELETE` exigem também o papel `admin`. Não existe mais listagem geral nem `POST /api/stores` público; lojas novas nascem em `POST /auth/register` (loja + primeiro admin).
+- **Categorias (globais):** só o **administrador do sistema** (`users.is_platform_admin = true`) cria, edita e exclui. As lojas apenas **selecionam** o que já existe: todo usuário logado lê a lista, e ao cadastrar/editar um produto o `category_id` precisa existir e estar ativo (`Category not found` / `Category is inactive`; a categoria que o produto já tem pode continuar mesmo se for desativada depois).
+- **Administrador do sistema:** é um usuário comum com a flag ligada, independente do papel na loja (`admin`/`manager`/`staff`). A flag **não pode ser alterada pela API** (registro e `PUT /api/users` a ignoram); só por CLI: `npm run platform-admin -- email@exemplo.com` (e `-- email --revoke` para retirar). A checagem (`requirePlatformAdmin`) consulta o banco a cada chamada, então revogar vale na hora, sem esperar o token expirar. O login devolve `user.is_platform_admin`, que a tela usa para mostrar ou esconder o CRUD de categorias.
+- Guardas cobertas por testes: `middleware/__tests__/auth.test.ts` (`authorizeRole`, `requireOwnStore`) e `routes/__tests__/access.routes.test.ts` (a corrente de middlewares de cada rota).
+- **Cadastro da loja (`POST /auth/register`):** público, mas só cria uma loja nova + o seu primeiro `admin`. Exige **CNPJ válido** (dígitos verificadores; guardado só com números, então `11.222.333/0001-81` e `11222333000181` são o mesmo), e-mails válidos e senha de no mínimo 8 caracteres. Falhou no meio (ex.: senha fraca)? A loja é desfeita e o CNPJ pode ser usado de novo. O e-mail de acesso é conferido antes de criar qualquer coisa.
+- **Usuários (`/api/users`):** tudo exige login e fica restrito à própria loja (id de outra loja = 404). `POST` (criar) e `PATCH /:id/deactivate`: só `admin` (e nunca a si mesmo); `GET /` (listar): `admin`/`manager`; `GET /:id`: `staff` só vê a si mesmo; `PUT /:id`: cada um edita o próprio perfil (nome/telefone), `admin` edita qualquer um da loja e é o único que muda `active`; troca de senha **só da própria conta**. `role` precisa ser `admin`/`manager`/`staff`; `store_id` e `is_platform_admin` vêm sempre do servidor, nunca do corpo.
+- **Contas desativadas:** o token vale 24 h, mas a conta é conferida no banco (cache de 15 s, zerado ao desativar usuário ou loja): usuário desativado, loja desativada/apagada ou usuário inexistente recebem 401 na hora.
+- **Atualizações (`PUT`) só aceitam os campos documentados** em produtos, tamanhos, clientes, fornecedores, insumos, categorias e imagens (`utils/pick.ts`); campos como `store_id` enviados no corpo são ignorados.
+- **Login:** mesma resposta para e-mail inexistente e senha errada (e custo de tempo igual); "conta desativada" só aparece para quem acertou a senha. Limite de tentativas: 10 por IP+e-mail e 100 por IP a cada 15 min; cadastro: 10 por hora por IP (HTTP 429). O limite é por processo e usa `req.ip`: atrás de proxy defina `TRUST_PROXY` (ex.: `1`).
+- **Produção:** o backend se recusa a subir sem `JWT_SECRET` (e sem `INTEGRATION_ENCRYPTION_KEY` ao gravar segredos).
+- **Telas:** `/login` (sem credenciais de teste) e `/register` (cadastro por CNPJ com máscara e validação; após criar, já entra como administrador da nova loja).
+- **Ainda não coberto:** o limitador é em memória; recuperação de senha e confirmação de e-mail não existem; um `admin` pode ser o único admin da loja e ficar sem acesso (não há "último admin").
 
 ## 💡 Notas Importantes
 

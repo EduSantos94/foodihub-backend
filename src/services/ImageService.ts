@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { pick } from '../utils/pick.js';
 import { ImageModel, ImageEntityType } from '../database/models/ImageModel.js';
 import { ImageQueries } from '../database/queries/ImageQueries.js';
 import {
@@ -76,7 +77,7 @@ export class ImageService {
     const q = await this.ensureQueries();
     const existing = await q.findImageById(id, storeId);
     if (!existing) throw new Error('Image not found');
-    const updated = await q.updateImage(id, storeId, data);
+    const updated = await q.updateImage(id, storeId, pick(data, ['entity_type', 'entity_id', 'url_thumbnail', 'active']));
     return this.mapImage(updated!);
   }
 

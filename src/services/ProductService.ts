@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { pick } from '../utils/pick.js';
 import { ProductModel } from '../database/models/ProductModel.js';
 import { ProductSizeModel } from '../database/models/ProductSizeModel.js';
 import { ProductQueries } from '../database/queries/ProductQueries.js';
@@ -34,6 +35,8 @@ export class ProductService {
     data: CreateProductRequest
   ): Promise<ProductResponse> {
     const q = await this.ensureQueries();
+    if (data.category_id) await this.assertCategoryAvailable(q, data.category_id);
+
     const product = await q.createProduct({
       store_id: storeId,
       name: data.name,
@@ -79,11 +82,30 @@ export class ProductService {
     const existing = await q.findProductById(id, storeId);
     if (!existing) throw new Error('Product not found');
 
-    const updated = await q.updateProduct(id, storeId, {
-      ...data,
-      updated_at: new Date(),
-    });
+    // Only the documented fields are accepted (never store_id, deleted_at, ...)
+    const changes: Partial<ProductModel> = { updated_at: new Date() };
+    if (data.name !== undefined) changes.name = data.name;
+    if (data.description !== undefined) changes.description = data.description;
+    if (data.price !== undefined) changes.price = data.price;
+    if (data.amount !== undefined) changes.amount = data.amount;
+    if (data.active !== undefined) changes.active = data.active;
+    if (data.category_id !== undefined) {
+      // Moving to another category must pick an existing active one; the current one can stay
+      if (data.category_id && data.category_id !== existing.category_id) {
+        await this.assertCategoryAvailable(q, data.category_id);
+      }
+      changes.category_id = data.category_id;
+    }
+
+    const updated = await q.updateProduct(id, storeId, changes);
     return this.mapProduct(updated!);
+  }
+
+  /** Stores only select categories that the platform already created and kept active. */
+  private async assertCategoryAvailable(q: ProductQueries, categoryId: string): Promise<void> {
+    const category = await q.findCategoryById(categoryId);
+    if (!category) throw new Error('Category not found');
+    if (!category.active) throw new Error('Category is inactive');
   }
 
   async deleteProduct(id: string, storeId: string): Promise<void> {
@@ -132,7 +154,7 @@ export class ProductService {
     const size = await q.findSizeById(sizeId, storeId);
     if (!size || size.product_id !== productId) throw new Error('Size not found');
 
-    const updated = await q.updateSize(sizeId, storeId, { ...data, updated_at: new Date() });
+    const updated = await q.updateSize(sizeId, storeId, { ...pick(data, ['name', 'active']), updated_at: new Date() });
     return this.mapSize(updated!);
   }
 

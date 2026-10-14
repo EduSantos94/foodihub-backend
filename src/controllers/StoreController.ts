@@ -1,26 +1,13 @@
 import { Request, Response } from 'express';
 import { StoreService } from '../services/StoreService.js';
-import { CreateStoreRequest, UpdateStoreRequest, PaginationQuery } from '../types/index.js';
+import { UpdateStoreRequest } from '../types/index.js';
+import { invalidateAuthCache } from '../middleware/auth.js';
 
 export class StoreController {
   private storeService: StoreService;
 
   constructor() {
     this.storeService = new StoreService();
-  }
-
-  async createStore(req: Request, res: Response): Promise<void> {
-    try {
-      const data: CreateStoreRequest = req.body;
-      const store = await this.storeService.createStore(data);
-      res.status(201).json({
-        success: true,
-        data: store,
-        message: 'Store created successfully',
-      });
-    } catch (error) {
-      this.handleError(error, res);
-    }
   }
 
   async getStore(req: Request, res: Response): Promise<void> {
@@ -51,17 +38,16 @@ export class StoreController {
     }
   }
 
-  async getAllStores(req: Request, res: Response): Promise<void> {
+  async getMyStore(req: Request, res: Response): Promise<void> {
     try {
-      const query: PaginationQuery = {
-        page: req.query.page ? parseInt(req.query.page as string) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
-        order: (req.query.order as 'ASC' | 'DESC') || 'DESC',
-      };
-      const stores = await this.storeService.getAllStores(query);
+      const storeId = (req as any).user.store_id;
+      const store = await this.storeService.getStoreById(storeId);
       res.json({
         success: true,
-        data: stores,
+        data: {
+          data: [store],
+          pagination: { page: 1, limit: 1, total: 1, total_pages: 1 },
+        },
       });
     } catch (error) {
       this.handleError(error, res);
@@ -72,6 +58,7 @@ export class StoreController {
     try {
       const { id } = req.params;
       const store = await this.storeService.deactivateStore(id);
+      invalidateAuthCache();
       res.json({
         success: true,
         data: store,
@@ -86,6 +73,7 @@ export class StoreController {
     try {
       const { id } = req.params;
       await this.storeService.softDeleteStore(id);
+      invalidateAuthCache();
       res.json({
         success: true,
         message: 'Store deleted successfully',

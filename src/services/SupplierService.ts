@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { pick } from '../utils/pick.js';
 import { SupplierModel } from '../database/models/SupplierModel.js';
 import { SupplierQueries } from '../database/queries/SupplierQueries.js';
 import {
@@ -85,7 +86,7 @@ export class SupplierService {
       if (duplicate) throw new Error('Supplier with this CNPJ already exists in this store');
     }
 
-    const updated = await q.updateSupplier(id, storeId, { ...data, updated_at: new Date() });
+    const updated = await q.updateSupplier(id, storeId, { ...pick(data, ['name', 'cnpj', 'phone', 'email', 'contact_person', 'address', 'city', 'state', 'zip_code', 'notes', 'active']), updated_at: new Date() });
     return this.mapSupplier(updated!);
   }
 

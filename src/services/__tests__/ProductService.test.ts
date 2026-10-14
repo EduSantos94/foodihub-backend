@@ -18,6 +18,7 @@ describe('ProductService', () => {
     service = new ProductService();
     mockQueries = {
       createProduct: vi.fn(),
+      findCategoryById: vi.fn().mockResolvedValue({ id: 'cat-1', active: true }),
       findProductById: vi.fn(),
       findAllByStore: vi.fn(),
       updateProduct: vi.fn(),
@@ -119,6 +120,57 @@ describe('ProductService', () => {
       await expect(service.getProduct(mockProductId, mockStoreId)).rejects.toThrow(
         'Product not found'
       );
+    });
+  });
+
+  describe('categories are selected, never invented', () => {
+    it('should reject a category that does not exist', async () => {
+      mockQueries.findCategoryById.mockResolvedValue(null);
+      (service as any).queries = mockQueries;
+      await expect(service.createProduct(mockStoreId, { name: 'x', price: 1, category_id: 'nope' })).rejects.toThrow('Category not found');
+      expect(mockQueries.createProduct).not.toHaveBeenCalled();
+    });
+
+    it('should reject an inactive category', async () => {
+      mockQueries.findCategoryById.mockResolvedValue({ id: 'cat-1', active: false });
+      (service as any).queries = mockQueries;
+      await expect(service.createProduct(mockStoreId, { name: 'x', price: 1, category_id: 'cat-1' })).rejects.toThrow('inactive');
+    });
+
+    it('should not look the category up when none is given', async () => {
+      mockQueries.createProduct.mockResolvedValue({ id: 'p', store_id: mockStoreId, name: 'x', price: 1, amount: 0, active: true });
+      (service as any).queries = mockQueries;
+      await service.createProduct(mockStoreId, { name: 'x', price: 1 });
+      expect(mockQueries.findCategoryById).not.toHaveBeenCalled();
+    });
+
+    it('should validate a new category on update but keep the current one even if it became inactive', async () => {
+      const existing = { id: mockProductId, store_id: mockStoreId, name: 'x', price: 1, amount: 0, active: true, category_id: 'cat-old' };
+      mockQueries.findProductById.mockResolvedValue(existing);
+      mockQueries.updateProduct.mockResolvedValue(existing);
+      (service as any).queries = mockQueries;
+
+      await service.updateProduct(mockProductId, mockStoreId, { category_id: 'cat-old' });
+      expect(mockQueries.findCategoryById).not.toHaveBeenCalled();
+
+      mockQueries.findCategoryById.mockResolvedValue(null);
+      await expect(service.updateProduct(mockProductId, mockStoreId, { category_id: 'cat-new' })).rejects.toThrow('Category not found');
+    });
+  });
+
+  describe('update only accepts documented fields', () => {
+    it('should drop store_id, deleted_at and other unknown properties', async () => {
+      const existing = { id: mockProductId, store_id: mockStoreId, name: 'x', price: 1, amount: 0, active: true };
+      mockQueries.findProductById.mockResolvedValue(existing);
+      mockQueries.updateProduct.mockResolvedValue(existing);
+      (service as any).queries = mockQueries;
+
+      await service.updateProduct(mockProductId, mockStoreId, { name: 'y', store_id: 'other-store', deleted_at: new Date() } as any);
+
+      const changes = mockQueries.updateProduct.mock.calls[0][2];
+      expect(changes.name).toBe('y');
+      expect(changes).not.toHaveProperty('store_id');
+      expect(changes).not.toHaveProperty('deleted_at');
     });
   });
 

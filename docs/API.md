@@ -71,6 +71,8 @@ Content-Type: application/json
 
 ## 🏪 Stores Endpoints
 
+> **Atualização de segurança:** todas as rotas de `/api/stores` exigem login e só enxergam a **própria** loja (`GET /api/stores` devolve apenas ela; `/:id` de outra loja responde 404). `PUT`, `PATCH /:id/deactivate` e `DELETE` exigem papel `admin`. `POST /api/stores` não existe mais: use `POST /auth/register`. Os exemplos abaixo de listagem geral e criação estão desatualizados.
+
 ### Listar Stores
 
 ```http

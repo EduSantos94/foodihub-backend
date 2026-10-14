@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { pick } from '../utils/pick.js';
 import { SupplyModel } from '../database/models/SupplyModel.js';
 import { SupplyQueries } from '../database/queries/SupplyQueries.js';
 import {
@@ -73,7 +74,7 @@ export class SupplyService {
       if (duplicate) throw new Error('Supply with this name already exists in this store');
     }
 
-    const updated = await q.updateSupply(id, storeId, { ...data, updated_at: new Date() });
+    const updated = await q.updateSupply(id, storeId, { ...pick(data, ['name', 'type', 'unit_measure', 'amount', 'description', 'active']), updated_at: new Date() });
     return this.mapSupply(updated!);
   }
 

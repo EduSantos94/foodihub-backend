@@ -74,6 +74,7 @@ export interface UserResponse {
   phone?: string;
   role: string;
   active: boolean;
+  is_platform_admin: boolean;
   created_at: Date;
   updated_at: Date;
 }

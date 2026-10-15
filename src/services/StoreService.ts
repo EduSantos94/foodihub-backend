@@ -2,6 +2,7 @@ import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
 import { StoreModel } from '../database/models/StoreModel.js';
 import { UserModel } from '../database/models/UserModel.js';
+import { normalizeBrazilianFields } from '../utils/brazil.js';
 import {
   CreateStoreRequest,
   UpdateStoreRequest,
@@ -75,7 +76,13 @@ export class StoreService {
       throw new Error('Store not found');
     }
 
-    Object.assign(store, data);
+    const normalized = normalizeBrazilianFields({ cnpj: data.document, phone: data.phone, zip_code: data.zip_code, state: data.state });
+    Object.assign(store, data, {
+      ...(normalized.cnpj ? { document: normalized.cnpj } : {}),
+      ...(normalized.phone ? { phone: normalized.phone } : {}),
+      ...(normalized.zip_code ? { zip_code: normalized.zip_code } : {}),
+      ...(normalized.state ? { state: normalized.state } : {}),
+    });
     store.updated_at = new Date();
 
     const updatedStore = await this.storeRepository!.save(store);

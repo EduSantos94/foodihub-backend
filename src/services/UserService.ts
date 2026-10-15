@@ -1,3 +1,4 @@
+import { normalizeBrazilianFields } from '../utils/brazil.js';
 import { Repository } from 'typeorm';
 import bcrypt from 'bcryptjs';
 import { createDataSource } from '../database/connection.js';
@@ -55,7 +56,7 @@ export class UserService {
       password_hash: hashedPassword,
       first_name: data.first_name,
       last_name: data.last_name,
-      phone: data.phone,
+      phone: normalizeBrazilianFields({ phone: data.phone }).phone,
       role: (data.role || UserRole.STAFF) as UserRole,
       active: true,
     });
@@ -102,7 +103,7 @@ export class UserService {
     Object.assign(user, {
       first_name: data.first_name || user.first_name,
       last_name: data.last_name || user.last_name,
-      phone: data.phone || user.phone,
+      phone: normalizeBrazilianFields({ phone: data.phone }).phone || user.phone,
       active: data.active !== undefined ? data.active : user.active,
     });
 

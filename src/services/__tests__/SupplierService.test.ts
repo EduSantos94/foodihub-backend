@@ -27,11 +27,13 @@ describe('SupplierService', () => {
 
   describe('createSupplier', () => {
     it('should create supplier successfully', async () => {
-      const data = { name: 'Distribuidora ABC', cnpj: '12.345.678/0001-99', phone: '1133334444' };
+      const data = { name: 'Distribuidora ABC', cnpj: '11.222.333/0001-81', phone: '(11) 3333-4444' };
       const mockSupplier = {
         id: mockSupplierId,
         store_id: mockStoreId,
         ...data,
+        cnpj: '11222333000181',
+        phone: '1133334444',
         active: true,
         created_at: new Date(),
         updated_at: new Date(),
@@ -44,16 +46,29 @@ describe('SupplierService', () => {
       const result = await service.createSupplier(mockStoreId, data);
 
       expect(result.name).toBe('Distribuidora ABC');
-      expect(result.cnpj).toBe('12.345.678/0001-99');
+      expect(result.cnpj).toBe('11222333000181');
       expect(result.active).toBe(true);
-      expect(mockQueries.findSupplierByCnpj).toHaveBeenCalledWith('12.345.678/0001-99', mockStoreId);
+      // formatted input is stored as digits only
+      expect(mockQueries.findSupplierByCnpj).toHaveBeenCalledWith('11222333000181', mockStoreId);
       expect(mockQueries.createSupplier).toHaveBeenCalledWith(
-        expect.objectContaining({ store_id: mockStoreId, name: 'Distribuidora ABC', active: true })
+        expect.objectContaining({ store_id: mockStoreId, name: 'Distribuidora ABC', cnpj: '11222333000181', phone: '1133334444', active: true })
       );
     });
 
+    it.each([
+      [{ cnpj: '12.345.678/0001-99' }, 'CNPJ is invalid'],
+      [{ cnpj: '11.222.333/00AB-81' }, 'CNPJ is invalid'],
+      [{ phone: '123' }, 'Phone is invalid'],
+      [{ zip_code: '1234' }, 'CEP is invalid'],
+      [{ state: 'XX' }, 'State is invalid'],
+    ])('rejects invalid Brazilian fields %j', async (extra, message) => {
+      (service as any).queries = mockQueries;
+      await expect(service.createSupplier(mockStoreId, { name: 'Fornecedor X', ...extra } as any)).rejects.toThrow(message);
+      expect(mockQueries.createSupplier).not.toHaveBeenCalled();
+    });
+
     it('should throw error if CNPJ already exists in this store', async () => {
-      const data = { name: 'Fornecedor X', cnpj: '12.345.678/0001-99' };
+      const data = { name: 'Fornecedor X', cnpj: '11.222.333/0001-81' };
       mockQueries.findSupplierByCnpj.mockResolvedValue({ id: 'existing' });
       (service as any).queries = mockQueries;
 
@@ -168,15 +183,15 @@ describe('SupplierService', () => {
     });
 
     it('should throw error if new CNPJ already exists', async () => {
-      const existing = { id: mockSupplierId, cnpj: '11.111.111/0001-11' };
-      const duplicate = { id: 'other-id', cnpj: '22.222.222/0001-22' };
+      const existing = { id: mockSupplierId, cnpj: '11222333000181' };
+      const duplicate = { id: 'other-id', cnpj: '34028316000103' };
 
       mockQueries.findSupplierById.mockResolvedValue(existing);
       mockQueries.findSupplierByCnpj.mockResolvedValue(duplicate);
       (service as any).queries = mockQueries;
 
       await expect(
-        service.updateSupplier(mockSupplierId, mockStoreId, { cnpj: '22.222.222/0001-22' })
+        service.updateSupplier(mockSupplierId, mockStoreId, { cnpj: '34.028.316/0001-03' })
       ).rejects.toThrow('Supplier with this CNPJ already exists in this store');
     });
   });

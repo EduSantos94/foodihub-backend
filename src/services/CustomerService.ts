@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { normalizeBrazilianFields } from '../utils/brazil.js';
 import { pick } from '../utils/pick.js';
 import { CustomerModel } from '../database/models/CustomerModel.js';
 import { CustomerQueries } from '../database/queries/CustomerQueries.js';
@@ -25,9 +26,10 @@ export class CustomerService {
 
   async createCustomer(
     storeId: string,
-    data: CreateCustomerRequest
+    rawData: CreateCustomerRequest
   ): Promise<CustomerResponse> {
     const q = await this.ensureQueries();
+    const data = { ...rawData, ...normalizeBrazilianFields(rawData) };
 
     // Check if email already exists for this store
     if (data.email) {
@@ -79,11 +81,12 @@ export class CustomerService {
   async updateCustomer(
     id: string,
     storeId: string,
-    data: UpdateCustomerRequest
+    rawData: UpdateCustomerRequest
   ): Promise<CustomerResponse> {
     const q = await this.ensureQueries();
     const existing = await q.findCustomerById(id, storeId);
     if (!existing) throw new Error('Customer not found');
+    const data = { ...rawData, ...normalizeBrazilianFields(rawData) };
 
     // If updating email, check for duplicates
     if (data.email && data.email !== existing.email) {

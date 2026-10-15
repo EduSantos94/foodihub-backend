@@ -3,7 +3,7 @@ import { UserService } from './UserService.js';
 import { StoreService } from './StoreService.js';
 import bcrypt from 'bcryptjs';
 import { LoginRequest, RegisterRequest, LoginResponse } from '../types/index.js';
-import { isValidCnpj, onlyDigits } from '../utils/cnpj.js';
+import { cleanCnpj, isValidCnpj } from '../utils/cnpj.js';
 
 // Compared against when the email is unknown, so "no such user" takes as long as "wrong password"
 const DUMMY_HASH = bcrypt.hashSync('foodihub-dummy-password', 10);
@@ -71,7 +71,7 @@ export class AuthService {
     if (!isValidCnpj(String(data.store_document))) {
       throw new Error('store_document must be a valid CNPJ');
     }
-    const document = onlyDigits(String(data.store_document));
+    const document = cleanCnpj(String(data.store_document));
 
     if (!EMAIL_RE.test(String(data.store_email))) throw new Error('store_email must be a valid email');
     if (!EMAIL_RE.test(String(data.admin_email))) throw new Error('admin_email must be a valid email');

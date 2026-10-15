@@ -1,5 +1,6 @@
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
+import { normalizeBrazilianFields } from '../utils/brazil.js';
 import { pick } from '../utils/pick.js';
 import { SupplierModel } from '../database/models/SupplierModel.js';
 import { SupplierQueries } from '../database/queries/SupplierQueries.js';
@@ -23,8 +24,9 @@ export class SupplierService {
     return this.queries;
   }
 
-  async createSupplier(storeId: string, data: CreateSupplierRequest): Promise<SupplierResponse> {
+  async createSupplier(storeId: string, rawData: CreateSupplierRequest): Promise<SupplierResponse> {
     const q = await this.ensureQueries();
+    const data = { ...rawData, ...normalizeBrazilianFields(rawData) };
 
     if (data.cnpj) {
       const existing = await q.findSupplierByCnpj(data.cnpj, storeId);
@@ -75,11 +77,12 @@ export class SupplierService {
   async updateSupplier(
     id: string,
     storeId: string,
-    data: UpdateSupplierRequest
+    rawData: UpdateSupplierRequest
   ): Promise<SupplierResponse> {
     const q = await this.ensureQueries();
     const existing = await q.findSupplierById(id, storeId);
     if (!existing) throw new Error('Supplier not found');
+    const data = { ...rawData, ...normalizeBrazilianFields(rawData) };
 
     if (data.cnpj && data.cnpj !== existing.cnpj) {
       const duplicate = await q.findSupplierByCnpj(data.cnpj, storeId);

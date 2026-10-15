@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { initializeDatabase } from './database/connection.js';
 import authRoutes from './routes/auth.routes.js';
 import storeRoutes from './routes/store.routes.js';
+import adminStoreRoutes from './routes/admin.store.routes.js';
 import userRoutes from './routes/user.routes.js';
 import productRoutes from './routes/product.routes.js';
 import { categoryRoutes } from './routes/category.routes.js';
@@ -15,6 +16,7 @@ import { supplyRoutes } from './routes/supply.routes.js';
 import { purchaseRoutes } from './routes/purchase.routes.js';
 import { saleRoutes } from './routes/sale.routes.js';
 import { integrationRoutes } from './routes/integration.routes.js';
+import { reportRoutes } from './routes/report.routes.js';
 import { startWebhookWorker } from './services/WebhookWorker.js';
 
 dotenv.config();
@@ -44,6 +46,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/auth', authRoutes);
 app.use('/api/stores', storeRoutes);
+app.use('/api/admin/stores', adminStoreRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -54,6 +57,7 @@ app.use('/api/supplies', supplyRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/integrations', integrationRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Welcome endpoint
 app.get('/api', (req, res) => {

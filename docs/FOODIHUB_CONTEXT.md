@@ -122,11 +122,16 @@ Tabela genérica com `type` (shop, product, supplier, banner, category, promotio
 - **Sessão:** token e usuário ficam no `AsyncStorage`; ao recarregar a página o usuário continua logado.
 - **Permissões na tela:** Categorias só editáveis pelo administrador do sistema; as lojas veem a lista em modo leitura e escolhem a categoria no formulário de produto (só as ativas aparecem).
 - **Vendas (prontas):** `/pdv` (Nova venda: catálogo com busca, carrinho limitado ao estoque, cliente opcional, retirada/entrega/no local, pagamento, desconto, "pagamento já recebido") e `/sales` (lista com filtro de status, detalhes, avançar status, receber, cancelar só admin/manager). Tamanhos de produto ainda não são escolhidos no PDV.
-- Próximas fatias sugeridas: Compras e estoque, Integrações/webhooks, Usuários da loja.
+- **Lojas (`/stores`):** só aparece no menu para o administrador do sistema; lista, edita, ativa/desativa e exclui lojas. Não cria: lojas novas nascem em `/register`.
+- **Compras (`/purchases`):** lista, nova compra (fornecedor, data DD/MM/AAAA, itens com insumo/quantidade/preço/lote/validade, "já foi pago"), detalhes, marcar como paga e excluir (admin/manager; estorna o estoque). Datas de compra são `DATE` sem fuso.
+- **Usuários (`/users`, admin/manager):** lista; só o admin cria (e-mail, senha inicial ≥ 8, papel) e edita (nome, telefone, ativo). Não há exclusão: desativar bloqueia o acesso na hora. **Meu perfil (`/profile`):** dados pessoais e troca da própria senha. **Minha loja (`/store`):** dados de contato; só o admin da loja edita.
+- **Integrações (`/integrations`, admin/manager):** CRUD (tipo fixo após criar; chave/segredo nunca exibidos e, ao editar, vazio = manter) e o diálogo "Webhooks" (adicionar, testar, ativar, excluir, últimos eventos com reenvio).
+- **Relatórios (`/reports`, admin/manager):** `GET /api/reports/overview` (views `vw_*` + estoque baixo; 30 dias) alimenta a tela (faturamento, vendas por status, faturamento por dia, mais vendidos, estoque baixo, saúde das integrações) e dois cartões do Início. O PDV pergunta o tamanho quando o produto tem tamanhos ativos.
+- Próximas fatias sugeridas: recuperação de senha (exige envio de e-mail, ainda não configurado).
 
 ## 🔒 Isolamento entre lojas e permissões (backend)
 
-- **Lojas:** todas as rotas de `/api/stores` exigem login e só expõem a **própria** loja: `GET /` devolve só a loja do usuário, e `/:id` de outra loja responde **404** (não revela que existe). `PUT`, `PATCH /:id/deactivate` e `DELETE` exigem também o papel `admin`. Não existe mais listagem geral nem `POST /api/stores` público; lojas novas nascem em `POST /auth/register` (loja + primeiro admin).
+- **Lojas:** todas as rotas de `/api/stores` exigem login e só expõem a **própria** loja: `GET /` devolve só a loja do usuário, e `/:id` de outra loja responde **404** (não revela que existe). `PUT` exige o papel `admin` da loja e só altera dados de contato (nome, e-mail, telefone, endereço; nunca CNPJ nem `active`). Desativar, reativar, excluir e listar todas as lojas é só do **administrador do sistema**, em `/api/admin/stores` (`GET /`, `PUT /:id`, `PATCH /:id/activate|deactivate`, `DELETE /:id`; ele não desativa nem exclui a própria loja). Não existe mais listagem geral nem `POST /api/stores` público; lojas novas nascem em `POST /auth/register` (loja + primeiro admin).
 - **Categorias (globais):** só o **administrador do sistema** (`users.is_platform_admin = true`) cria, edita e exclui. As lojas apenas **selecionam** o que já existe: todo usuário logado lê a lista, e ao cadastrar/editar um produto o `category_id` precisa existir e estar ativo (`Category not found` / `Category is inactive`; a categoria que o produto já tem pode continuar mesmo se for desativada depois).
 - **Administrador do sistema:** é um usuário comum com a flag ligada, independente do papel na loja (`admin`/`manager`/`staff`). A flag **não pode ser alterada pela API** (registro e `PUT /api/users` a ignoram); só por CLI: `npm run platform-admin -- email@exemplo.com` (e `-- email --revoke` para retirar). A checagem (`requirePlatformAdmin`) consulta o banco a cada chamada, então revogar vale na hora, sem esperar o token expirar. O login devolve `user.is_platform_admin`, que a tela usa para mostrar ou esconder o CRUD de categorias.
 - Guardas cobertas por testes: `middleware/__tests__/auth.test.ts` (`authorizeRole`, `requireOwnStore`) e `routes/__tests__/access.routes.test.ts` (a corrente de middlewares de cada rota).
@@ -151,5 +156,4 @@ Tabela genérica com `type` (shop, product, supplier, banner, category, promotio
 ## 🚀 Próximos Passos
 
 1. Conectores iFood/aiQFome (receber pedidos e sincronizar status via `sale_integrations.sync_status`): dependem da documentação oficial e de credenciais de homologação de cada plataforma.
-2. Endpoints que leem as views `vw_*` (relatórios na API).
-3. Rotação da `INTEGRATION_ENCRYPTION_KEY` (hoje só uma chave).
+2. Rotação da `INTEGRATION_ENCRYPTION_KEY` (hoje só uma chave).

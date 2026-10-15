@@ -23,26 +23,12 @@ router.get('/:id', requireOwnStore, (req, res) => storeController.getStore(req, 
 
 /**
  * PUT /stores/:id
- * Atualizar a própria loja (admin)
+ * Atualizar os dados de contato da própria loja (admin da loja)
  */
 router.put('/:id', requireOwnStore, authorizeRole('admin'), (req, res) =>
   storeController.updateStore(req, res)
 );
 
-/**
- * PATCH /stores/:id/deactivate
- * Desativar a própria loja (admin)
- */
-router.patch('/:id/deactivate', requireOwnStore, authorizeRole('admin'), (req, res) =>
-  storeController.deactivateStore(req, res)
-);
-
-/**
- * DELETE /stores/:id
- * Deletar (soft delete) a própria loja (admin)
- */
-router.delete('/:id', requireOwnStore, authorizeRole('admin'), (req, res) =>
-  storeController.deleteStore(req, res)
-);
+// Deactivating or deleting a store is up to the platform administrator: see admin.store.routes.ts
 
 export default router;

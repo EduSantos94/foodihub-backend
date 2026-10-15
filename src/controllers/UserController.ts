@@ -136,10 +136,7 @@ export class UserController {
       };
 
       const users = await this.userService.getUsersByStore(storeId, query);
-      res.json({
-        success: true,
-        data: users,
-      });
+      res.json({ success: true, ...users });
     } catch (error) {
       this.handleError(error, res);
     }

@@ -82,6 +82,31 @@ export class StoreService {
     return this.mapToResponse(updatedStore);
   }
 
+  /** Every store that was not deleted, active or not (platform administrator only). */
+  async listStores(query: PaginationQuery): Promise<PaginatedResponse<StoreResponse>> {
+    await this.ensureRepositories();
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+    const [stores, total] = await this.storeRepository!.findAndCount({
+      order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return {
+      data: stores.map((s) => this.mapToResponse(s)),
+      pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+    };
+  }
+
+  async activateStore(id: string): Promise<StoreResponse> {
+    await this.ensureRepositories();
+    const store = await this.storeRepository!.findOne({ where: { id } });
+    if (!store) throw new Error('Store not found');
+    store.active = true;
+    store.updated_at = new Date();
+    return this.mapToResponse(await this.storeRepository!.save(store));
+  }
+
   async deactivateStore(id: string): Promise<StoreResponse> {
     await this.ensureRepositories();
     const store = await this.storeRepository!.findOne({

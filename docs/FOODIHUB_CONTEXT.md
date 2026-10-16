@@ -19,7 +19,7 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 
 ---
 
-## 🗄️ Tabelas (migrations 001–019)
+## 🗄️ Tabelas (migrations 001–020)
 
 | Migration | Tabela | Observação |
 |-----------|--------|------------|
@@ -39,9 +39,10 @@ Sistema SaaS **multi-tenant** para controle de **estoque, compras e vendas de lo
 | 016 | `sales`, `sale_items` | Venda + itens com snapshot de nome e preço |
 | 017 | `sale_integrations` | Origem da venda (`ifood`, `aiqfome`, `manual`, `app`, `web`), `UNIQUE (sale_id)` |
 | 019 | — | `users.is_platform_admin` (administrador do sistema; só alterável pelo banco/CLI) |
+| 020 | — | `customers.cpf` e `suppliers.cnpj` únicos **por loja** (índices parciais; antes eram únicos no sistema todo) |
 | 018 | views `vw_*` | Relatórios: `vw_sales_by_status`, `vw_top_products`, `vw_integration_status`, `vw_webhook_errors`, `vw_supplies_stock` |
 
-As migrations 001–019 estão aplicadas no banco do Docker. Models, services, controllers, rotas e testes existem para todas as tabelas, inclusive vendas (`/api/sales`) e integrações/webhooks (`/api/integrations`).
+As migrations 001–020 estão aplicadas no banco do Docker. Models, services, controllers, rotas e testes existem para todas as tabelas, inclusive vendas (`/api/sales`) e integrações/webhooks (`/api/integrations`).
 
 Padrões das migrations: ids `UUID`, status/tipos como `VARCHAR` + `CHECK` (sem `CREATE TYPE ENUM`), `IF NOT EXISTS` e constraints nomeadas.
 
@@ -130,6 +131,8 @@ Tabela genérica com `type` (shop, product, supplier, banner, category, promotio
 - Próximas fatias sugeridas: recuperação de senha (exige envio de e-mail, ainda não configurado).
 
 - **Máscaras e validação de campos (reaproveitável):** `frontend/lib/masks.ts` define as máscaras (`phone`, `cnpj`, `cpf`, `cep`, `uf`, `date`, `decimal`, `integer`), cada uma com formatação ao digitar, validação e se vai só com dígitos para a API. Usa-se com `<TextField mask="phone" />` ou `mask: 'phone'` num campo do `ResourcePage` (decimal/integer entram sozinhos). Para criar outra, basta uma entrada em `MASKS`. Telefone, CPF e CEP são guardados **só com dígitos** e mostrados formatados. O **CNPJ aceita letras** (CNPJ alfanumérico): os 12 primeiros caracteres são 0-9/A-Z e os 2 últimos (dígitos verificadores) são números; cada caractere vale o código ASCII menos 48 no cálculo, então CNPJs numéricos continuam válidos. É guardado sem pontuação e em maiúsculas (`12ABC34501DE35`). O backend repete a validação e a normalização (`utils/brazil.ts`: `normalizeBrazilianFields`) em fornecedores, clientes, lojas e usuários; valores inválidos voltam 400. Registros antigos gravados com pontuação continuam legíveis; ao editar e salvar, passam a ficar só com dígitos.
+
+- **Importar clientes por planilha (`POST /api/customers/import`, admin/manager):** o frontend (botão "Importar planilha" em Clientes) lê `.xlsx` ou `.csv` no navegador (`lib/spreadsheet.ts`, `lib/csv.ts`; CSV em UTF-8 ou Windows-1252, separador `;` `,` ou tab), o usuário **mapeia colunas para campos** (`components/ImportDialog.tsx`, com mapeamento automático pelo título) e a API recebe só as linhas já mapeadas (até 5000 por vez; corpo de até 5 MB, lido depois do login). Fluxo em duas chamadas: `dry_run: true` mostra o resultado sem salvar e depois a importação de verdade, numa única transação. Regras (`services/customerImport.ts`): só o nome é obrigatório (aceita "nome completo", separado em nome e sobrenome); telefone aceita +55, zero à esquerda e máscara; CPF/CEP recuperam zeros perdidos pelo Excel; campos opcionais inválidos são **descartados com aviso** em vez de recusar o cliente; já cadastrado (mesmo e-mail, CPF, telefone ou, se a linha não tem nenhum desses, mesmo nome) ou repetido na planilha é **ignorado**. Para reaproveitar em outro recurso: criar a rota/serviço de importação e uma `ImportConfig` (campos com apelidos de título, opções, mensagens).
 
 ## 🔒 Isolamento entre lojas e permissões (backend)
 

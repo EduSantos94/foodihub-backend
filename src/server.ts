@@ -29,7 +29,9 @@ if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PRO
 
 // ==================== Middleware ====================
 app.use(cors());
-app.use(express.json());
+// The import route reads its own (bigger) body after authentication, see customer.routes.ts
+const jsonBody = express.json();
+app.use((req, res, next) => (req.path === '/api/customers/import' ? next() : jsonBody(req, res, next)));
 app.use(express.urlencoded({ extended: true }));
 
 // ==================== Routes ====================

@@ -35,6 +35,21 @@ export class CustomerController {
     }
   }
 
+  async importCustomers(req: Request, res: Response): Promise<void> {
+    try {
+      const storeId = (req as any).user.store_id;
+      const { rows, dry_run, skip_same_phone } = req.body ?? {};
+      const result = await this.customerService.importCustomers(storeId, rows, { dry_run: dry_run === true, skip_same_phone });
+      res.status(result.dry_run ? 200 : 201).json({
+        success: true,
+        data: result,
+        message: result.dry_run ? 'Import checked' : 'Customers imported',
+      });
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
   async getCustomer(req: Request, res: Response): Promise<void> {
     try {
       const storeId = (req as any).user.store_id;

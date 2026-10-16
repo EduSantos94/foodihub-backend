@@ -47,6 +47,25 @@ export class CustomerQueries {
     return this.findCustomerById(id, storeId);
   }
 
+  /** Names, e-mails, CPFs and phones of the store's customers (to spot duplicates on import) */
+  async findContactKeys(storeId: string): Promise<{ first_name: string; last_name?: string; email?: string; cpf?: string; phone?: string }[]> {
+    return this.customerRepository
+      .createQueryBuilder('c')
+      .select(['c.first_name', 'c.last_name', 'c.email', 'c.cpf', 'c.phone'])
+      .where('c.store_id = :storeId', { storeId })
+      .getMany();
+  }
+
+  /** Inserts all rows or none: a database error rolls the whole import back. */
+  async bulkCreate(storeId: string, rows: Partial<CustomerModel>[], chunkSize = 500): Promise<void> {
+    await this.customerRepository.manager.transaction(async (manager) => {
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize).map((r) => ({ ...r, store_id: storeId, active: true }));
+        await manager.createQueryBuilder().insert().into(CustomerModel).values(chunk).execute();
+      }
+    });
+  }
+
   async softDeleteCustomer(id: string, storeId: string): Promise<boolean> {
     const result = await this.customerRepository.update(
       { id, store_id: storeId },

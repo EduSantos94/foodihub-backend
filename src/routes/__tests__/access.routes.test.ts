@@ -5,6 +5,7 @@ import { categoryRoutes } from '../category.routes.js';
 import userRoutes from '../user.routes.js';
 import authRoutes from '../auth.routes.js';
 import { reportRoutes } from '../report.routes.js';
+import { customerRoutes } from '../customer.routes.js';
 
 // Reads the middleware chain of each route, so a route that loses its guard fails here
 type Layer = { route?: { path: string; methods: Record<string, boolean>; stack: { name: string; handle: Function }[] } };
@@ -73,5 +74,12 @@ describe('route guards', () => {
     expect(first.name).toBe('authenticateToken');
     expect(second.name).toBeTruthy(); // authorizeRole('admin', 'manager')
     expect(routeInfo(reportRoutes, 'get', '/overview').length).toBe(1);
+  });
+
+  it('customers: the spreadsheet import needs admin/manager and reads its own body after login', () => {
+    expect((customerRoutes as any).stack[0].name).toBe('authenticateToken');
+    const chain = routeInfo(customerRoutes, 'post', '/import');
+    expect(chain.length).toBe(3); // role check + bigger json parser + handler
+    expect(chain[1]).toBe('jsonParser');
   });
 });

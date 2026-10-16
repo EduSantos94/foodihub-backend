@@ -31,7 +31,8 @@ export class CustomerModel {
   @Column('varchar', { length: 20, nullable: true })
   phone?: string;
 
-  @Column('varchar', { length: 11, unique: true, nullable: true })
+  // unique per store: partial index uq_customers_store_cpf (migration 020)
+  @Column('varchar', { length: 11, nullable: true })
   cpf?: string;
 
   @Column('varchar', { length: 500, nullable: true })

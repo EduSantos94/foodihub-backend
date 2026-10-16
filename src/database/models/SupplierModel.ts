@@ -21,7 +21,8 @@ export class SupplierModel {
   @Column('varchar', { length: 255 })
   name: string;
 
-  @Column('varchar', { length: 18, unique: true, nullable: true })
+  // unique per store: partial index uq_suppliers_store_cnpj (migration 020)
+  @Column('varchar', { length: 18, nullable: true })
   cnpj?: string;
 
   @Column('varchar', { length: 20, nullable: true })

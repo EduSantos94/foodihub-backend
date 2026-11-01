@@ -1,6 +1,9 @@
 {
   "name": "foodihub-backend",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=24"
+  },
   "type": "module",
   "main": "dist/server.js",
   "scripts": {

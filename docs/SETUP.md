@@ -6,7 +6,7 @@ Guia completo para setup local do projeto FoodiHub com 3 repos.
 
 - **Git** - Controle de versão
 - **Docker** & **Docker Compose** - Containerização (recomendado)
-- **Node.js 26+** - Se rodar localmente sem Docker
+- **Node.js 24+** - Se rodar localmente sem Docker
 - **PostgreSQL 16** - Se rodar sem Docker
 
 ## 🔧 Instalação
@@ -94,7 +94,7 @@ Requer instalação local de dependências.
 ```bash
 cd backend
 
-# Instalar Node.js 26+ antes
+# Instalar Node.js 24+ antes
 
 # Dependências
 npm install
@@ -116,7 +116,7 @@ npm run dev
 ```bash
 cd frontend
 
-# Instalar Node.js 18+ antes
+# Instalar Node.js 24+ antes
 
 # Instalar Expo CLI global
 npm install -g expo-cli

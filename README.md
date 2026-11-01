@@ -29,7 +29,7 @@ src/
 ## Desenvolvimento Local
 
 ### Pré-requisitos
-- Node.js 26+
+- Node.js 24+
 - PostgreSQL 16+ ou Docker
 
 ### Setup

@@ -1,0 +1,11 @@
+# Keep secrets, local builds and deploy files out of the image
+.git
+.gitignore
+node_modules
+dist
+coverage
+.env
+.env.*
+deploy
+docs
+*.log

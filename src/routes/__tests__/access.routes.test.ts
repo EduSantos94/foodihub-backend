@@ -62,11 +62,11 @@ describe('route guards', () => {
     expect(routeInfo(userRoutes, 'patch', '/:id/deactivate').length).toBe(2);
   });
 
-  it('auth: login and register are rate limited, and there is nothing else public', () => {
+  it('auth: login and register are rate limited, and the only other public route is /config', () => {
     const routes = ((authRoutes as any).stack as Layer[]).filter((l) => l.route).map((l) => `${Object.keys(l.route!.methods)[0]} ${l.route!.path}`);
-    expect(routes.sort()).toEqual(['post /login', 'post /register']);
+    expect(routes.sort()).toEqual(['get /config', 'post /login', 'post /register']);
     expect(routeInfo(authRoutes, 'post', '/login').length).toBe(3); // per-IP limiter, per-account limiter, handler
-    expect(routeInfo(authRoutes, 'post', '/register').length).toBe(2); // limiter, handler
+    expect(routeInfo(authRoutes, 'post', '/register').length).toBe(3); // registration switch, limiter, handler
   });
 
   it('reports: login plus admin/manager role check on everything', () => {
@@ -81,5 +81,10 @@ describe('route guards', () => {
     const chain = routeInfo(customerRoutes, 'post', '/import');
     expect(chain.length).toBe(3); // role check + bigger json parser + handler
     expect(chain[1]).toBe('jsonParser');
+  });
+
+  it('auth: sign-up goes through the registration switch before the rate limit; /config is public', () => {
+    expect(routeInfo(authRoutes, 'post', '/register')[0]).toBe('requireRegistrationOpen');
+    expect(routeInfo(authRoutes, 'get', '/config').length).toBe(1);
   });
 });

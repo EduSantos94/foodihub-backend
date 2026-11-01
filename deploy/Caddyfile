@@ -1,0 +1,27 @@
+# One address for everything. Caddy gets and renews the HTTPS certificate by itself.
+# SITE_ADDRESS comes from .env.prod (a domain, or something like app.203.0.113.10.sslip.io).
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# API: the paths the backend serves
+	@api path /api /api/* /auth/* /health
+	handle @api {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy backend:3333
+	}
+
+	# Everything else is the web app
+	handle {
+		reverse_proxy frontend:80
+	}
+}

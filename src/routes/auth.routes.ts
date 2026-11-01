@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController.js';
 import { rateLimit } from '../middleware/rateLimit.js';
+import { registrationOpen, requireRegistrationOpen } from '../middleware/registration.js';
 
 const router = Router();
 const authController = new AuthController();
@@ -34,9 +35,15 @@ const registerPerIp = rateLimit({
 router.post('/login', loginPerIp, loginPerAccount, (req, res) => authController.login(req, res));
 
 /**
+ * GET /auth/config
+ * Public settings the login screen needs (is store sign-up open?)
+ */
+router.get('/config', (_req, res) => res.json({ success: true, data: { registration_open: registrationOpen() } }));
+
+/**
  * POST /auth/register
  * Cadastrar uma nova loja (por CNPJ) com o primeiro usuário administrador
  */
-router.post('/register', registerPerIp, (req, res) => authController.register(req, res));
+router.post('/register', requireRegistrationOpen, registerPerIp, (req, res) => authController.register(req, res));
 
 export default router;

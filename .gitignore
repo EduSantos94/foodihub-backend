@@ -9,3 +9,6 @@ dist/
 *.swp
 *.swo
 coverage/
+
+# Production secrets
+deploy/.env.prod

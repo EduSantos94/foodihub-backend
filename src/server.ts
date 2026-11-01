@@ -28,7 +28,10 @@ const PORT = process.env.PORT || 3333;
 if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
 
 // ==================== Middleware ====================
-app.use(cors());
+// Production serves the web app and the API from the same address (see deploy/Caddyfile), which needs no
+// CORS at all. Set CORS_ORIGIN (comma separated) only when a browser app lives on another address.
+const corsOrigins = (process.env.CORS_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+app.use(cors(corsOrigins.length > 0 ? { origin: corsOrigins } : process.env.NODE_ENV === 'production' ? { origin: false } : undefined));
 // The import route reads its own (bigger) body after authentication, see customer.routes.ts
 const jsonBody = express.json();
 app.use((req, res, next) => (req.path === '/api/customers/import' ? next() : jsonBody(req, res, next)));

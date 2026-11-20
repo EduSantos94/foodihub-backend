@@ -31,10 +31,10 @@ export class IntegrationModel {
   type: IntegrationType;
 
   // Stored encrypted (AES-256-GCM); the transformer is transparent to the code
-  @Column('varchar', { length: 500, nullable: true, transformer: encryptedColumn })
+  @Column('text', { nullable: true, transformer: encryptedColumn })
   api_key?: string;
 
-  @Column('varchar', { length: 500, nullable: true, transformer: encryptedColumn })
+  @Column('text', { nullable: true, transformer: encryptedColumn })
   api_secret?: string;
 
   @Column('varchar', { length: 500, nullable: true })

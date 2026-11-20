@@ -21,6 +21,8 @@ import { SaleIntegrationModel } from './models/SaleIntegrationModel.js';
 import { IntegrationModel } from './models/IntegrationModel.js';
 import { WebhookModel } from './models/WebhookModel.js';
 import { WebhookEventModel } from './models/WebhookEventModel.js';
+import { ExternalMappingModel } from './models/ExternalMappingModel.js';
+import { SyncOutboxModel } from './models/SyncOutboxModel.js';
 
 /**
  * Migration Runner
@@ -40,7 +42,7 @@ const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'foodihub',
   synchronize: false,
   logging: false,
-  entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel, SupplierModel, ImageModel, SupplyModel, PurchaseModel, PurchaseItemModel, SaleModel, SaleItemModel, SaleIntegrationModel, IntegrationModel, WebhookModel, WebhookEventModel],
+  entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel, SupplierModel, ImageModel, SupplyModel, PurchaseModel, PurchaseItemModel, SaleModel, SaleItemModel, SaleIntegrationModel, IntegrationModel, WebhookModel, WebhookEventModel, ExternalMappingModel, SyncOutboxModel],
 });
 
 async function ensureMigrationsTable(queryRunner: any): Promise<void> {

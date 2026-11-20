@@ -18,6 +18,8 @@ import { SaleIntegrationModel } from './models/SaleIntegrationModel.js';
 import { IntegrationModel } from './models/IntegrationModel.js';
 import { WebhookModel } from './models/WebhookModel.js';
 import { WebhookEventModel } from './models/WebhookEventModel.js';
+import { ExternalMappingModel } from './models/ExternalMappingModel.js';
+import { SyncOutboxModel } from './models/SyncOutboxModel.js';
 
 export let AppDataSource: DataSource;
 
@@ -35,7 +37,7 @@ export async function createDataSource() {
     database: process.env.DB_NAME || 'foodihub',
     synchronize: false,
     logging: process.env.NODE_ENV === 'development',
-    entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel, SupplierModel, ImageModel, SupplyModel, PurchaseModel, PurchaseItemModel, SaleModel, SaleItemModel, SaleIntegrationModel, IntegrationModel, WebhookModel, WebhookEventModel],
+    entities: [StoreModel, UserModel, AuditLogModel, ProductModel, ProductSizeModel, CategoryModel, CustomerModel, SupplierModel, ImageModel, SupplyModel, PurchaseModel, PurchaseItemModel, SaleModel, SaleItemModel, SaleIntegrationModel, IntegrationModel, WebhookModel, WebhookEventModel, ExternalMappingModel, SyncOutboxModel],
     migrations: ['dist/database/migrations/**/*.js'],
     subscribers: ['dist/database/subscribers/**/*.js'],
   });

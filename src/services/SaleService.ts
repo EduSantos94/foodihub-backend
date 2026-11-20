@@ -1,9 +1,15 @@
+import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
 import { SaleModel } from '../database/models/SaleModel.js';
 import { SaleItemModel } from '../database/models/SaleItemModel.js';
 import { SaleIntegrationModel } from '../database/models/SaleIntegrationModel.js';
 import { SaleQueries } from '../database/queries/SaleQueries.js';
+import { CustomerModel } from '../database/models/CustomerModel.js';
+import { ProductModel } from '../database/models/ProductModel.js';
+import { insertChunks } from '../database/queries/bulkInsert.js';
+import { ImportResult, normalizeText, parseDate, runGroupedImport } from './importCommon.js';
+import { buildSale, CatalogProduct, prepareSaleLine, SaleHistoryRow, SaleLine, SaleRecord, saleKeys } from './saleHistoryImport.js';
 import { WebhookDispatcher, WebhookEventType } from './WebhookDispatcher.js';
 import {
   CreateSaleRequest,
@@ -187,6 +193,139 @@ export class SaleService {
     const response = this.mapSale(updated!);
     await this.emit(storeId, 'order.cancelled', response);
     return response;
+  }
+
+  /**
+   * Imports the sales history from a spreadsheet with one row per item sold. Rows of the same customer,
+   * day, payment method and situation become one order with its items (prices as of the day). It never
+   * changes product stock and never fires webhooks. Customers are matched by name; products by name, and
+   * a product that is not in the catalog is created inactive (unless `create_missing_products` is false).
+   * `default_date` dates the rows that have none. `dry_run` only reports. An order that already exists
+   * is skipped. Returns a `batch_id` that undoSaleHistory understands.
+   */
+  async importSaleHistory(
+    storeId: string,
+    rows: SaleHistoryRow[],
+    options: { dry_run?: boolean; default_date?: string; create_missing_products?: boolean; group_lines?: boolean } = {}
+  ): Promise<ImportResult> {
+    const defaultText = (options.default_date ?? '').trim();
+    const defaultDate = defaultText ? parseDate(defaultText) : null;
+    if (defaultText && !defaultDate) throw new Error('default_date is not a valid date');
+    const createMissing = options.create_missing_products !== false;
+    const groupLines = options.group_lines !== false;
+    const dryRun = options.dry_run === true;
+
+    const ds = await createDataSource();
+    const customers = new Map<string, string>();
+    for (const c of await ds.getRepository(CustomerModel).find({ where: { store_id: storeId }, select: ['id', 'first_name', 'last_name'] })) {
+      const key = normalizeText(`${c.first_name} ${c.last_name ?? ''}`);
+      if (!customers.has(key)) customers.set(key, c.id);
+    }
+    const products = new Map<string, CatalogProduct>();
+    for (const p of await ds.getRepository(ProductModel).find({ where: { store_id: storeId }, select: ['id', 'name', 'price'] })) {
+      const key = normalizeText(p.name);
+      if (!products.has(key)) products.set(key, { id: p.id, name: p.name, price: Number(p.price) });
+    }
+
+    const known = new Set<string>();
+    const stamp = (d: Date | string) => (d instanceof Date ? d.toISOString().slice(0, 19).replace('T', ' ') : String(d));
+    for (const sale of await ds.getRepository(SaleModel).find({
+      where: { store_id: storeId },
+      select: ['sale_number', 'sale_date', 'customer_id', 'payment_method', 'payment_status', 'total_amount'],
+    })) {
+      for (const key of saleKeys({ at: stamp(sale.sale_date), customer: sale.customer_id ?? '', method: sale.payment_method, paymentStatus: sale.payment_status, total: Number(sale.total_amount), number: sale.sale_number })) known.add(key);
+    }
+
+    const batchId = randomUUID();
+    let counter = 0;
+    const result = await runGroupedImport<SaleLine, SaleRecord>(rows, dryRun, {
+      prepare: (raw) => prepareSaleLine(raw, { defaultDate: defaultDate ?? undefined, customers, products, createMissingProducts: createMissing }),
+      groupKey: (l) =>
+        l.number
+          ? `n|${normalizeText(l.number)}`
+          : `${l.date.date}|${l.date.time ?? ''}|${l.customerKey}|${l.method}|${l.paymentStatus}${groupLines ? '' : `|${counter++}`}`,
+      build: buildSale,
+      check: (record) => {
+        const keys = saleKeys({ at: record.at, customer: record.customerId ?? '', method: record.method, paymentStatus: record.paymentStatus, total: record.total, number: record.number });
+        if (keys.some((k) => known.has(k))) return 'same';
+        keys.forEach((k) => known.add(k));
+        return undefined;
+      },
+      insert: (records) =>
+        ds.transaction(async (manager) => {
+          // products that were sold but are not in the catalog: created inactive, priced as the sale was
+          const created = new Map<string, string>();
+          const newProducts: Record<string, unknown>[] = [];
+          for (const r of records) {
+            for (const item of r.items) {
+              const key = normalizeText(item.productName);
+              if (item.productId || created.has(key)) continue;
+              const id = randomUUID();
+              created.set(key, id);
+              newProducts.push({ id, store_id: storeId, name: item.productName, price: item.unitPrice, amount: 0, active: false, import_batch_id: batchId });
+            }
+          }
+          await insertChunks(manager, ProductModel, newProducts);
+
+          const saleRows: Record<string, unknown>[] = [];
+          const itemRows: Record<string, unknown>[] = [];
+          for (const r of records) {
+            const id = randomUUID();
+            saleRows.push({
+              id,
+              store_id: storeId,
+              customer_id: r.customerId,
+              sale_number: r.number,
+              sale_date: r.at,
+              delivery_type: 'takeout',
+              subtotal: r.subtotal,
+              discount: r.discount,
+              tax: 0,
+              total_amount: r.total,
+              status: r.paymentStatus === 'cancelled' ? 'cancelled' : 'delivered',
+              payment_method: r.method,
+              payment_status: r.paymentStatus,
+              paid_at: r.paymentStatus === 'paid' ? r.at : undefined,
+              notes: r.notes,
+              import_batch_id: batchId,
+              created_at: r.at,
+              updated_at: r.at,
+            });
+            for (const item of r.items) {
+              itemRows.push({
+                sale_id: id,
+                product_id: item.productId ?? created.get(normalizeText(item.productName)),
+                product_name: item.productName,
+                quantity: item.quantity,
+                unit_price: item.unitPrice,
+                total_price: item.totalPrice,
+              });
+            }
+          }
+          await insertChunks(manager, SaleModel, saleRows);
+          await insertChunks(manager, SaleItemModel, itemRows);
+        }),
+    });
+    if (!dryRun && (result.records ?? 0) > 0) result.batch_id = batchId;
+    return result;
+  }
+
+  /** Removes everything one sales-history import created: its orders (and items), and the products it created that no other sale uses. */
+  async undoSaleHistory(storeId: string, batchId: string): Promise<{ deleted_sales: number; deleted_products: number }> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(batchId)) throw new Error('Invalid batch id');
+    const ds = await createDataSource();
+    const counts = await ds.transaction(async (manager) => {
+      const sales = await manager.createQueryBuilder().delete().from(SaleModel).where('store_id = :storeId AND import_batch_id = :batchId', { storeId, batchId }).execute();
+      const products = await manager
+        .createQueryBuilder()
+        .delete()
+        .from(ProductModel)
+        .where('store_id = :storeId AND import_batch_id = :batchId AND NOT EXISTS (SELECT 1 FROM sale_items si WHERE si.product_id = products.id)', { storeId, batchId })
+        .execute();
+      return { deleted_sales: sales.affected ?? 0, deleted_products: products.affected ?? 0 };
+    });
+    if (counts.deleted_sales === 0 && counts.deleted_products === 0) throw new Error('Import batch not found');
+    return counts;
   }
 
   /** Queues webhook events; a failure here must never break the sale itself. */

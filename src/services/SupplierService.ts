@@ -1,4 +1,8 @@
 import { Repository } from 'typeorm';
+import { cleanCnpj } from '../utils/cnpj.js';
+import { bulkInsert } from '../database/queries/bulkInsert.js';
+import { ImportResult, normalizeText, runImport } from './importCommon.js';
+import { prepareSupplierRow, SupplierImportRow } from './supplierImport.js';
 import { createDataSource } from '../database/connection.js';
 import { normalizeBrazilianFields } from '../utils/brazil.js';
 import { pick } from '../utils/pick.js';
@@ -98,6 +102,29 @@ export class SupplierService {
     const existing = await q.findSupplierById(id, storeId);
     if (!existing) throw new Error('Supplier not found');
     await q.softDeleteSupplier(id, storeId);
+  }
+
+  /**
+   * Imports suppliers from a spreadsheet the frontend already read and mapped. `dry_run` only reports.
+   * A supplier whose CNPJ or name is already registered (or repeated in the file) is skipped.
+   */
+  async importSuppliers(storeId: string, rows: SupplierImportRow[], options: { dry_run?: boolean } = {}): Promise<ImportResult> {
+    const ds = await createDataSource();
+    const existing = await ds.getRepository(SupplierModel).find({ where: { store_id: storeId }, select: ['name', 'cnpj'] });
+    const names = new Set(existing.map((s) => normalizeText(s.name)));
+    const cnpjs = new Set(existing.filter((s) => s.cnpj).map((s) => cleanCnpj(s.cnpj as string)));
+
+    return runImport(rows, options.dry_run === true, {
+      prepare: (raw) => prepareSupplierRow(raw),
+      check: (data) => {
+        if (data.cnpj && cnpjs.has(data.cnpj)) return 'cnpj';
+        if (names.has(normalizeText(data.name))) return 'name';
+        if (data.cnpj) cnpjs.add(data.cnpj);
+        names.add(normalizeText(data.name));
+        return undefined;
+      },
+      insert: (items) => bulkInsert(ds, SupplierModel, items.map((i) => ({ ...i, store_id: storeId, active: true }))),
+    });
   }
 
   private mapSupplier(s: SupplierModel): SupplierResponse {

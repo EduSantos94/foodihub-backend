@@ -32,9 +32,10 @@ if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PRO
 // CORS at all. Set CORS_ORIGIN (comma separated) only when a browser app lives on another address.
 const corsOrigins = (process.env.CORS_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean);
 app.use(cors(corsOrigins.length > 0 ? { origin: corsOrigins } : process.env.NODE_ENV === 'production' ? { origin: false } : undefined));
-// The import route reads its own (bigger) body after authentication, see customer.routes.ts
+// Spreadsheet import routes read their own (bigger) body after authentication, see e.g. customer.routes.ts
+const IMPORT_PATH = /^\/api\/[a-z-]+\/import(-history)?$/;
 const jsonBody = express.json();
-app.use((req, res, next) => (req.path === '/api/customers/import' ? next() : jsonBody(req, res, next)));
+app.use((req, res, next) => (IMPORT_PATH.test(req.path) ? next() : jsonBody(req, res, next)));
 app.use(express.urlencoded({ extended: true }));
 
 // ==================== Routes ====================

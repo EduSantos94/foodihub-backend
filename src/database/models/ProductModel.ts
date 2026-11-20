@@ -36,6 +36,9 @@ export class ProductModel {
   @Column('int', { default: 0 })
   amount: number;
 
+  @Column('uuid', { nullable: true })
+  import_batch_id?: string;
+
   @Column('boolean', { default: true })
   active: boolean;
 

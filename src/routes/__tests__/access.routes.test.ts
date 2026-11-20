@@ -6,6 +6,11 @@ import userRoutes from '../user.routes.js';
 import authRoutes from '../auth.routes.js';
 import { reportRoutes } from '../report.routes.js';
 import { customerRoutes } from '../customer.routes.js';
+import { supplierRoutes } from '../supplier.routes.js';
+import { supplyRoutes } from '../supply.routes.js';
+import productRoutes from '../product.routes.js';
+import { purchaseRoutes } from '../purchase.routes.js';
+import { saleRoutes } from '../sale.routes.js';
 
 // Reads the middleware chain of each route, so a route that loses its guard fails here
 type Layer = { route?: { path: string; methods: Record<string, boolean>; stack: { name: string; handle: Function }[] } };
@@ -86,5 +91,27 @@ describe('route guards', () => {
   it('auth: sign-up goes through the registration switch before the rate limit; /config is public', () => {
     expect(routeInfo(authRoutes, 'post', '/register')[0]).toBe('requireRegistrationOpen');
     expect(routeInfo(authRoutes, 'get', '/config').length).toBe(1);
+  });
+
+  it.each([
+    ['suppliers', supplierRoutes],
+    ['supplies', supplyRoutes],
+    ['products', productRoutes],
+  ])('%s: the spreadsheet import needs admin/manager and reads its own body after login', (_name, router) => {
+    expect((router as any).stack[0].name).toBe('authenticateToken');
+    const chain = routeInfo(router, 'post', '/import');
+    expect(chain.length).toBe(3); // role check + bigger json parser + handler
+    expect(chain[1]).toBe('jsonParser');
+  });
+
+  it.each([
+    ['purchases', purchaseRoutes],
+    ['sales', saleRoutes],
+  ])('%s: the history import and its undo are admin/manager only', (_name, router) => {
+    expect((router as any).stack[0].name).toBe('authenticateToken');
+    const imp = routeInfo(router, 'post', '/import-history');
+    expect(imp.length).toBe(3); // role check + bigger json parser + handler
+    expect(imp[1]).toBe('jsonParser');
+    expect(routeInfo(router, 'delete', '/import-history/:batchId').length).toBe(2); // role check + handler
   });
 });

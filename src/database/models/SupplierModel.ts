@@ -49,6 +49,9 @@ export class SupplierModel {
   @Column('text', { nullable: true })
   notes?: string;
 
+  @Column('uuid', { nullable: true })
+  import_batch_id?: string;
+
   @Column('boolean', { default: true })
   active: boolean;
 

@@ -56,6 +56,9 @@ export class PurchaseModel {
   @Column('date', { nullable: true })
   payment_date?: Date;
 
+  @Column('uuid', { nullable: true })
+  import_batch_id?: string;
+
   @Column('text', { nullable: true })
   notes?: string;
 

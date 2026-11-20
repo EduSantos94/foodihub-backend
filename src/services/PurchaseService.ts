@@ -1,8 +1,13 @@
+import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { createDataSource } from '../database/connection.js';
 import { PurchaseModel } from '../database/models/PurchaseModel.js';
 import { PurchaseItemModel } from '../database/models/PurchaseItemModel.js';
 import { PurchaseQueries } from '../database/queries/PurchaseQueries.js';
+import { SupplierModel } from '../database/models/SupplierModel.js';
+import { insertChunks } from '../database/queries/bulkInsert.js';
+import { ImportResult, normalizeText, parseDate, runGroupedImport } from './importCommon.js';
+import { buildPurchase, PurchaseHistoryRow, PurchaseLine, preparePurchaseLine, purchaseKeys, PurchaseRecord } from './purchaseHistoryImport.js';
 import {
   CreatePurchaseRequest,
   UpdatePurchaseRequest,
@@ -136,6 +141,116 @@ export class PurchaseService {
       storeId,
       (existing.items ?? []).map((i: PurchaseItemModel) => ({ supply_id: i.supply_id, quantity: Number(i.quantity) }))
     );
+  }
+
+  /**
+   * Imports the purchases history from a spreadsheet with one row per item. Rows of the same supplier,
+   * date and situation become one purchase (its items listed in the notes). It never changes supplies
+   * stock. Suppliers that do not exist are created (unless `create_missing_suppliers` is false).
+   * `default_date` dates the rows that have none. `dry_run` only reports. A purchase that already exists
+   * (same number, or same supplier, date, total and situation) is skipped. Returns a `batch_id` that
+   * undoPurchaseHistory understands.
+   */
+  async importPurchaseHistory(
+    storeId: string,
+    rows: PurchaseHistoryRow[],
+    options: { dry_run?: boolean; default_date?: string; create_missing_suppliers?: boolean; group_lines?: boolean } = {}
+  ): Promise<ImportResult> {
+    const defaultText = (options.default_date ?? '').trim();
+    const defaultDate = defaultText ? parseDate(defaultText) : null;
+    if (defaultText && !defaultDate) throw new Error('default_date is not a valid date');
+    const createMissing = options.create_missing_suppliers !== false;
+    const groupLines = options.group_lines !== false;
+    const dryRun = options.dry_run === true;
+
+    const ds = await createDataSource();
+    const suppliers = new Map<string, string>();
+    const supplierName = new Map<string, string>();
+    for (const sup of await ds.getRepository(SupplierModel).find({ where: { store_id: storeId }, select: ['id', 'name'] })) {
+      suppliers.set(normalizeText(sup.name), sup.id);
+      supplierName.set(sup.id, sup.name);
+    }
+
+    const known = new Set<string>();
+    const existing = await ds.getRepository(PurchaseModel).find({
+      where: { store_id: storeId },
+      select: ['supplier_id', 'purchase_date', 'total_amount', 'payment_status', 'purchase_number'],
+    });
+    for (const p of existing) {
+      const date = p.purchase_date instanceof Date ? p.purchase_date.toISOString().slice(0, 10) : String(p.purchase_date).slice(0, 10);
+      for (const key of purchaseKeys({ date, supplier: supplierName.get(p.supplier_id) ?? '', total: Number(p.total_amount), status: p.payment_status, number: p.purchase_number })) known.add(key);
+    }
+
+    const batchId = randomUUID();
+    let counter = 0;
+    const result = await runGroupedImport<PurchaseLine, PurchaseRecord>(rows, dryRun, {
+      prepare: (raw) => preparePurchaseLine(raw, { defaultDate: defaultDate ?? undefined, suppliers, createMissingSuppliers: createMissing }),
+      groupKey: (l) => `${l.date}|${normalizeText(l.supplier)}|${l.status}|${l.method}|${l.number ?? ''}|${l.invoice ?? ''}${groupLines ? '' : `|${counter++}`}`,
+      build: buildPurchase,
+      check: (record) => {
+        const keys = purchaseKeys(record);
+        if (keys.some((k) => known.has(k))) return record.number ? 'number' : 'same';
+        keys.forEach((k) => known.add(k));
+        return undefined;
+      },
+      insert: (records) =>
+        ds.transaction(async (manager) => {
+          const ids = new Map(suppliers);
+          const created: Record<string, unknown>[] = [];
+          for (const r of records) {
+            const key = normalizeText(r.supplier);
+            if (!ids.has(key)) {
+              const id = randomUUID();
+              ids.set(key, id);
+              created.push({ id, store_id: storeId, name: r.supplier, active: true, import_batch_id: batchId });
+            }
+          }
+          await insertChunks(manager, SupplierModel, created);
+          await insertChunks(
+            manager,
+            PurchaseModel,
+            records.map((r) => ({
+              store_id: storeId,
+              supplier_id: ids.get(normalizeText(r.supplier)),
+              purchase_number: r.number,
+              purchase_date: r.date,
+              invoice_number: r.invoice,
+              total_amount: r.total,
+              paid_amount: r.status === 'paid' ? r.total : 0,
+              payment_status: r.status,
+              payment_method: r.method,
+              payment_date: r.status === 'paid' ? r.date : undefined,
+              notes: r.notes,
+              import_batch_id: batchId,
+            }))
+          );
+        }),
+    });
+    if (!dryRun && (result.records ?? 0) > 0) result.batch_id = batchId;
+    return result;
+  }
+
+  /** Removes everything one purchases-history import created: its purchases, and the suppliers it created that nothing else uses. */
+  async undoPurchaseHistory(storeId: string, batchId: string): Promise<{ deleted_purchases: number; deleted_suppliers: number }> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(batchId)) throw new Error('Invalid batch id');
+    const ds = await createDataSource();
+    const counts = await ds.transaction(async (manager) => {
+      const purchases = await manager
+        .createQueryBuilder()
+        .delete()
+        .from(PurchaseModel)
+        .where('store_id = :storeId AND import_batch_id = :batchId', { storeId, batchId })
+        .execute();
+      const suppliers = await manager
+        .createQueryBuilder()
+        .delete()
+        .from(SupplierModel)
+        .where('store_id = :storeId AND import_batch_id = :batchId AND NOT EXISTS (SELECT 1 FROM purchases p WHERE p.supplier_id = suppliers.id)', { storeId, batchId })
+        .execute();
+      return { deleted_purchases: purchases.affected ?? 0, deleted_suppliers: suppliers.affected ?? 0 };
+    });
+    if (counts.deleted_purchases === 0 && counts.deleted_suppliers === 0) throw new Error('Import batch not found');
+    return counts;
   }
 
   private mapItem(i: PurchaseItemModel): PurchaseItemResponse {

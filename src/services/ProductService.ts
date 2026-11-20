@@ -1,4 +1,8 @@
 import { Repository } from 'typeorm';
+import { CategoryModel } from '../database/models/CategoryModel.js';
+import { bulkInsert } from '../database/queries/bulkInsert.js';
+import { ImportResult, normalizeText, runImport } from './importCommon.js';
+import { prepareProductRow, ProductImportRow } from './productImport.js';
 import { createDataSource } from '../database/connection.js';
 import { pick } from '../utils/pick.js';
 import { ProductModel } from '../database/models/ProductModel.js';
@@ -166,6 +170,35 @@ export class ProductService {
   }
 
   // ==================== Mappers ====================
+
+  /**
+   * Imports products with price and opening stock from a spreadsheet. `dry_run` only reports. The
+   * category is matched by name against the platform's active categories. `default_amount` is the stock of
+   * rows that do not inform one. A product whose name already exists (or repeats in the file) is skipped.
+   */
+  async importProducts(storeId: string, rows: ProductImportRow[], options: { dry_run?: boolean; default_amount?: number } = {}): Promise<ImportResult> {
+    const defaultAmount = options.default_amount ?? 0;
+    if (!Number.isInteger(defaultAmount) || defaultAmount < 0 || defaultAmount > 2147483647) {
+      throw new Error('default_amount must be a whole number, 0 or more');
+    }
+    const ds = await createDataSource();
+    const existing = await ds.getRepository(ProductModel).find({ where: { store_id: storeId }, select: ['name'] });
+    const names = new Set(existing.map((p) => normalizeText(p.name)));
+    const categories = new Map<string, string>(
+      (await ds.getRepository(CategoryModel).find({ where: { active: true } })).map((c) => [normalizeText(c.name), c.id])
+    );
+
+    return runImport(rows, options.dry_run === true, {
+      prepare: (raw) => prepareProductRow(raw, categories, defaultAmount),
+      check: (data) => {
+        const key = normalizeText(data.name);
+        if (names.has(key)) return 'name';
+        names.add(key);
+        return undefined;
+      },
+      insert: (items) => bulkInsert(ds, ProductModel, items.map((i) => ({ ...i, store_id: storeId }))),
+    });
+  }
 
   private mapProduct(p: ProductModel): ProductResponse {
     return {

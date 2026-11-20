@@ -1,4 +1,7 @@
 import { Repository } from 'typeorm';
+import { bulkInsert } from '../database/queries/bulkInsert.js';
+import { ImportResult, normalizeText, runImport } from './importCommon.js';
+import { prepareSupplyRow, SupplyImportRow } from './supplyImport.js';
 import { createDataSource } from '../database/connection.js';
 import { pick } from '../utils/pick.js';
 import { SupplyModel } from '../database/models/SupplyModel.js';
@@ -83,6 +86,27 @@ export class SupplyService {
     const existing = await q.findSupplyById(id, storeId);
     if (!existing) throw new Error('Supply not found');
     await q.deleteSupply(id, storeId);
+  }
+
+  /**
+   * Imports supplies with their opening stock from a spreadsheet. `dry_run` only reports. A supply whose
+   * name already exists (or repeats in the file) is skipped.
+   */
+  async importSupplies(storeId: string, rows: SupplyImportRow[], options: { dry_run?: boolean } = {}): Promise<ImportResult> {
+    const ds = await createDataSource();
+    const existing = await ds.getRepository(SupplyModel).find({ where: { store_id: storeId }, select: ['name'] });
+    const names = new Set(existing.map((s) => normalizeText(s.name)));
+
+    return runImport(rows, options.dry_run === true, {
+      prepare: (raw) => prepareSupplyRow(raw),
+      check: (data) => {
+        const key = normalizeText(data.name);
+        if (names.has(key)) return 'name';
+        names.add(key);
+        return undefined;
+      },
+      insert: (items) => bulkInsert(ds, SupplyModel, items.map((i) => ({ ...i, store_id: storeId, active: true }))),
+    });
   }
 
   private mapSupply(s: SupplyModel): SupplyResponse {

@@ -1,9 +1,12 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { ProductController } from '../controllers/ProductController.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { importHandler } from '../controllers/importHandler.js';
+import { authenticateToken, authorizeRole } from '../middleware/auth.js';
+import { ProductService } from '../services/ProductService.js';
 
 const router = Router();
 const controller = new ProductController();
+const service = new ProductService();
 
 // Apply auth middleware to all routes
 router.use(authenticateToken);
@@ -21,6 +24,12 @@ router.post('/', (req, res) => controller.createProduct(req, res));
  * List products with pagination
  */
 router.get('/', (req, res) => controller.listProducts(req, res));
+
+/**
+ * POST /api/products/import
+ * Import products (price and opening stock) from a spreadsheet. Admin/manager only.
+ */
+router.post('/import', authorizeRole('admin', 'manager'), express.json({ limit: '5mb' }), importHandler((storeId, body) => service.importProducts(storeId, body.rows, { dry_run: body.dry_run === true, default_amount: body.default_amount === undefined || body.default_amount === '' ? undefined : Number(body.default_amount) })));
 
 /**
  * GET /api/products/:id

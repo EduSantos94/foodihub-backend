@@ -68,6 +68,9 @@ export class SaleModel {
   notes?: string;
 
   @Column('uuid', { nullable: true })
+  import_batch_id?: string;
+
+  @Column('uuid', { nullable: true })
   created_by?: string;
 
   // Uses string reference to avoid circular dependency with SaleItemModel

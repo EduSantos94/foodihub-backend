@@ -54,7 +54,12 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Column sizes of the customers table
 const LIMITS = { first_name: 100, last_name: 100, email: 255, delivery_address: 500, city: 100 } as const;
 
-const text = (value: unknown): string => (value === undefined || value === null ? '' : String(value).trim());
+const PLACEHOLDERS = new Set(['—', '–', '-', '--', '---', 'n/a']);
+const text = (value: unknown): string => {
+  if (value === undefined || value === null) return '';
+  const s = String(value).trim();
+  return PLACEHOLDERS.has(s.toLowerCase()) ? '' : s;
+};
 
 /**
  * Phone as people write it in spreadsheets: with country code ("+55 11 91234-5678"), with a leading

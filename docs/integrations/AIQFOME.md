@@ -103,7 +103,7 @@ Tudo conferido em `backend/src` em 2026-11-19.
 
 | Premissa do prompt | Resultado |
 |---|---|
-| Última migration é a `020` | **Confirmado** (`020_unique_documents_per_store.sql`). |
+| Última migration é a `020` | **Parcial.** No repositório sim (`020_unique_documents_per_store.sql`), mas o banco e a imagem Docker em execução já têm a `021_import_batch.sql` (importação por planilha), **cujo código-fonte não está no repositório** (ver §3.1). As migrations da integração começam na `022`. |
 | `integrations.type` aceita `aiqfome`, `UNIQUE(store_id,type)`, status, `config` JSONB | **Confirmado** (migration 015). |
 | `api_key`/`api_secret` criptografados em AES-256-GCM | **Confirmado** (`utils/crypto.ts`, formato `enc:v1:<iv>:<tag>:<cipher>`). |
 | `sale_integrations`: só `UNIQUE(sale_id)`, `external_id` com índice não único | **Confirmado** (migration 017). `external_id` é `VARCHAR(100)`. |
@@ -116,6 +116,10 @@ Tudo conferido em `backend/src` em 2026-11-19.
 | `sale_items.product_id` NOT NULL | Consistente com o prompt; não reconferido linha a linha. |
 | CPF único por loja (índice parcial) | **Confirmado** (migration 020, `uq_customers_store_cpf`). |
 | View `vw_integration_status` | **Existe** (migration 018). |
+
+### 3.1 Código fora do repositório (achado importante)
+
+A imagem `foodihub-backend:latest` (build de 26/10) e o banco de desenvolvimento contêm uma funcionalidade que **não existe no git**: importação por planilha de produtos, insumos, fornecedores, compras e histórico de vendas (`importHandler.ts`, `productImport.ts`, `saleHistoryImport.ts`, `purchaseHistoryImport.ts`, `supplierImport.ts`, `supplyImport.ts`, `importCommon.ts`, `bulkInsert.ts`, a migration `021_import_batch.sql` e alterações em models, rotas e services). Uma cópia foi salva em `~/Documentos/foodihub_backup_container_src/`. Até essa funcionalidade voltar ao repositório, ela corre risco de se perder se a imagem for reconstruída, e as migrations da integração evitam o número `021`.
 
 ### Riscos novos encontrados (não estavam no prompt)
 
@@ -142,7 +146,7 @@ Tudo conferido em `backend/src` em 2026-11-19.
 | Fase | Entrega | Bloqueada por |
 |---|---|---|
 | **0b (nova)** | Spike de leitura com loja de teste: resolver token (painel vs OAuth), base URL, formato de `inventory-quantity`, payloads reais de `GET /store`, `POST /menu`, `GET /orders`, `payment-methods`. Registrar tudo neste doc como VERIFICADO. | Seu aceite + token/loja de teste (perguntas 1 e 8) |
-| **1 Fundação** | Migrations 021+ (`external_mappings`, `sync_outbox`, UNIQUE parcial, `TEXT` nas credenciais se preciso), `AiqfomeClient` com refresh de token, worker, rotas `connect/status/sync`. | 0b |
+| **1 Fundação** | Migrations 022+ (`external_mappings`, `sync_outbox`, UNIQUE parcial, `TEXT` nas credenciais se preciso), `AiqfomeClient` com refresh de token, worker, rotas `connect/status/sync`. | 0b |
 | **2 Loja e pagamentos** | Snapshot da loja, mapa de pagamentos (ampliar CHECK ou `other`, guardando o original em `origin_data`). | 0b (formato real de `payment-methods` e do pedido) |
 | **3 Catálogo** | FoodiHub → aiqfome, importação com dry-run, opt-in por produto. | Ler endpoints de itens/tamanhos/adicionais (§2.3) + pergunta 4 |
 | **4 Estoque** | Trigger + outbox, `track_stock`, reconciliação, anti-eco, *oversold*. | Pergunta 3 (absoluto vs delta; aiqfome desconta sozinho?) |
